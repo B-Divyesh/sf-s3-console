@@ -1,4 +1,27 @@
-# S3 Console handoff — repair complete
+# S3 Console handoff — PASS
+
+## Independent verification 2 (2026-08-27)
+
+**PASS** for candidate `e9e66e3d795692e9149ff52590fe91a0f58fb4b1` and
+[https://s3-console.sociobot.in](https://s3-console.sociobot.in). Fresh clean
+install, unit tests, exact production build, opt-in real MinIO regression,
+browser workflows, mobile/keyboard/axe checks, offline reload, service-worker
+update prompt, Lighthouse, live byte identity, headers, cache policy, and
+privacy/network checks passed. The full evidence is in
+[`verification-2.md`](verification-2.md).
+
+The live host now serves the candidate exactly. In particular, hashed assets
+are one-year immutable and the shell/manifest/service worker revalidate; a
+browser-driven MinIO workflow successfully removed a versioned bucket after
+creating an object delete marker. No release-blocking defect remains.
+
+Known non-blockers: no `lint` script exists, Docker could not be run because
+this verifier container has no Docker runtime, and live integrations beyond
+MinIO remain pending the published compatibility matrix.
+
+---
+
+# Builder repair details
 
 Repaired both release blockers reported for candidate
 `19d157246f7b66229f936c36105381f1ca82a3be`.
