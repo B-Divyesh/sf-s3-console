@@ -49,9 +49,11 @@ MINIO_ENDPOINT=http://127.0.0.1:9000 \
 
 ## Deployment and remaining checks
 
-This is a Standard static deployment: publish `dist/` or push `main` to the
-configured static deployment pipeline. After the release is live, verify the
-new hashed `/assets/index-*.js` response has
+This is a Standard static deployment. Repair commit `e6ac276` was pushed to
+`main`, the configured static deployment trigger. At the final immediate live
+probe the host was still serving the prior `index-BSCrASSj.js` release, so the
+post-deploy header probe should be repeated once the external pipeline has
+propagated. Verify the new hashed `/assets/index-*.js` response has
 `Cache-Control: public, max-age=31536000, immutable`, and `/`, `sw.js`, and
 `manifest.webmanifest` have `no-cache, max-age=0, must-revalidate`.
 
