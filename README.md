@@ -6,7 +6,7 @@ The app has no backend. It signs standard S3 REST requests in your browser with 
 
 ## Features
 
-- List, create, and delete buckets
+- List, create, and delete buckets, including a deliberate version-history cleanup before deleting a versioned bucket
 - Browse object keys as prefix folders with pagination and filtering
 - Upload small files and multipart-upload larger files; download and delete objects
 - Read and replace object metadata and tags
@@ -32,6 +32,17 @@ Production builds use the factory work-order command and always land in `dist/`:
 npm test
 npm run build
 npm run preview
+```
+
+To run the real MinIO regression (it is skipped by default so a normal test run
+does not need credentials), point it at a disposable MinIO instance. This test
+creates a bucket, creates two object versions and a delete marker, then proves
+the browser client can remove all of them before bucket deletion.
+
+```sh
+MINIO_ENDPOINT=http://127.0.0.1:9000 \
+MINIO_ACCESS_KEY=minioadmin MINIO_SECRET_KEY=minioadmin \
+npm run test:minio
 ```
 
 ## Configure your object store
@@ -85,6 +96,12 @@ The image is a static nginx container. It does not proxy S3 traffic.
 ## Deploy
 
 Upload `dist/` to any static host. `staticwebapp.config.json` configures Azure Static Web Apps route fallback and security headers; `_headers` provides equivalent guidance for hosts supporting that convention. Do not put credentials in build-time environment variables.
+
+Fingerprint-named files under `/assets/` are served with a one-year immutable
+cache policy. The HTML shell, manifest, and service worker instead use
+`no-cache, max-age=0, must-revalidate` so new releases and service-worker
+updates are discovered promptly. Keep these rules when adapting the deploy
+configuration to another static host.
 
 ## License
 

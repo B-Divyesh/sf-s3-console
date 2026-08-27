@@ -10,6 +10,9 @@ export interface Connection {
 export interface Bucket { name: string; created?: string }
 export interface S3Object { key: string; size: number; modified?: string; etag?: string; storageClass?: string }
 export interface ObjectPage { objects: S3Object[]; prefixes: string[]; nextToken?: string }
+export interface ObjectVersion { key: string; versionId: string; deleteMarker: boolean }
+export interface ObjectVersionPage { versions: ObjectVersion[]; nextKeyMarker?: string; nextVersionIdMarker?: string }
+export interface BucketDeleteProgress { phase: 'listing' | 'deleting' | 'bucket'; discovered: number; deleted: number }
 export interface CorsRule { id?: string; origins: string[]; methods: string[]; headers?: string[]; exposeHeaders?: string[]; maxAgeSeconds?: number }
 export interface LifecycleRule { id: string; status: 'Enabled' | 'Disabled'; prefix: string; expirationDays?: number; noncurrentDays?: number }
 
@@ -51,6 +54,51 @@ export function parseError(xml: string, status: number): string {
 
 function xmlText(node: ParentNode, name: string): string | undefined {
   return (node as Element).getElementsByTagName(name)[0]?.textContent ?? undefined;
+}
+
+function decodeXml(value: string): string {
+  return value.replace(/&(amp|lt|gt|apos|quot);/g, (_match, entity: string) => ({ amp: '&', lt: '<', gt: '>', apos: "'", quot: '"' })[entity]!);
+}
+
+function xmlBlocks(xml: string, name: string): string[] {
+  return [...xml.matchAll(new RegExp(`<${name}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${name}>`, 'g'))].map(match => match[1]);
+}
+
+function xmlTextFromString(xml: string, name: string): string | undefined {
+  const match = new RegExp(`<${name}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${name}>`).exec(xml);
+  return match ? decodeXml(match[1].trim()) : undefined;
+}
+
+/** Parse the standard ListObjectVersions response. The fallback keeps protocol tests runnable in Node. */
+export function parseObjectVersions(xml: string): ObjectVersionPage {
+  if (typeof DOMParser !== 'undefined') {
+    const doc = new DOMParser().parseFromString(xml, 'application/xml');
+    const parse = (name: string, deleteMarker: boolean) => [...doc.getElementsByTagName(name)].map(node => ({
+      key: xmlText(node, 'Key') || '', versionId: xmlText(node, 'VersionId') || '', deleteMarker
+    })).filter(version => version.key && version.versionId);
+    return {
+      versions: [...parse('Version', false), ...parse('DeleteMarker', true)],
+      nextKeyMarker: xmlText(doc, 'NextKeyMarker'), nextVersionIdMarker: xmlText(doc, 'NextVersionIdMarker')
+    };
+  }
+  const parse = (name: string, deleteMarker: boolean) => xmlBlocks(xml, name).map(block => ({
+    key: xmlTextFromString(block, 'Key') || '', versionId: xmlTextFromString(block, 'VersionId') || '', deleteMarker
+  })).filter(version => version.key && version.versionId);
+  return {
+    versions: [...parse('Version', false), ...parse('DeleteMarker', true)],
+    nextKeyMarker: xmlTextFromString(xml, 'NextKeyMarker'), nextVersionIdMarker: xmlTextFromString(xml, 'NextVersionIdMarker')
+  };
+}
+
+function deleteResultError(xml: string): string | undefined {
+  if (typeof DOMParser !== 'undefined') {
+    const doc = new DOMParser().parseFromString(xml, 'application/xml');
+    const error = doc.getElementsByTagName('Error')[0];
+    if (error) return `${xmlText(error, 'Code') || 'Delete failed'}: ${xmlText(error, 'Message') || xmlText(error, 'Key') || 'S3 rejected an object version.'}`;
+    return undefined;
+  }
+  const error = xmlBlocks(xml, 'Error')[0];
+  return error ? `${xmlTextFromString(error, 'Code') || 'Delete failed'}: ${xmlTextFromString(error, 'Message') || xmlTextFromString(error, 'Key') || 'S3 rejected an object version.'}` : undefined;
 }
 
 function escapeXml(value: string): string {
@@ -126,6 +174,49 @@ export class S3Client {
   }
 
   async deleteBucket(name: string): Promise<void> { await this.signedFetch('DELETE', name); }
+
+  async listObjectVersions(bucket: string, keyMarker?: string, versionIdMarker?: string): Promise<ObjectVersionPage> {
+    const params: Record<string, string> = { versions: '', 'max-keys': '1000' };
+    if (keyMarker) params['key-marker'] = keyMarker;
+    if (versionIdMarker) params['version-id-marker'] = versionIdMarker;
+    return parseObjectVersions(await (await this.signedFetch('GET', bucket, '', params)).text());
+  }
+
+  async deleteObjectVersions(bucket: string, versions: ObjectVersion[]): Promise<void> {
+    if (!versions.length) return;
+    const body = `<Delete xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><Quiet>true</Quiet>${versions.map(version => `<Object><Key>${escapeXml(version.key)}</Key><VersionId>${escapeXml(version.versionId)}</VersionId></Object>`).join('')}</Delete>`;
+    const response = await this.signedFetch('POST', bucket, '', { delete: '' }, body, await checksumHeaders(body));
+    const error = deleteResultError(await response.text());
+    if (error) throw new Error(error);
+  }
+
+  /**
+   * Deletes every listed version and delete marker before deleting the bucket.
+   * All pages are enumerated before deletion so S3 continuation markers cannot
+   * skip entries when a previous page is removed.
+   */
+  async deleteBucketWithVersions(bucket: string, onProgress?: (progress: BucketDeleteProgress) => void): Promise<void> {
+    const versions: ObjectVersion[] = [];
+    let keyMarker: string | undefined;
+    let versionIdMarker: string | undefined;
+    do {
+      const page = await this.listObjectVersions(bucket, keyMarker, versionIdMarker);
+      versions.push(...page.versions);
+      onProgress?.({ phase: 'listing', discovered: versions.length, deleted: 0 });
+      keyMarker = page.nextKeyMarker;
+      versionIdMarker = page.nextVersionIdMarker;
+    } while (keyMarker || versionIdMarker);
+
+    let deleted = 0;
+    for (let start = 0; start < versions.length; start += 1000) {
+      const batch = versions.slice(start, start + 1000);
+      await this.deleteObjectVersions(bucket, batch);
+      deleted += batch.length;
+      onProgress?.({ phase: 'deleting', discovered: versions.length, deleted });
+    }
+    onProgress?.({ phase: 'bucket', discovered: versions.length, deleted });
+    await this.deleteBucket(bucket);
+  }
 
   async listObjects(bucket: string, prefix = '', delimiter = '/', token?: string): Promise<ObjectPage> {
     const params: Record<string, string> = { 'list-type': '2', prefix, delimiter, 'max-keys': '250' };

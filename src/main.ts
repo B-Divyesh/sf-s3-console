@@ -281,7 +281,7 @@ async function renderSettingsPanel(dialog: HTMLDialogElement, tab: string): Prom
     } else if (tab === 'lifecycle') {
       const rules = await state.client!.getLifecycle(state.bucket!); panel.innerHTML = editorPanel('Retention automation', 'Lifecycle rules', 'lifecycle', JSON.stringify(rules, null, 2), 'Each rule needs id, status, prefix, and optional expirationDays or noncurrentDays.'); bindJsonEditor(panel, 'lifecycle', value => state.client!.putLifecycle(state.bucket!, value as LifecycleRule[]));
     } else {
-      panel.innerHTML = `<p class="eyebrow danger-text">Irreversible action</p><h3>Delete this bucket</h3><p>S3 only permits deletion when the bucket contains no current objects. Versioned objects may also need to be removed with another tool.</p><button class="button danger" id="delete-bucket">Delete “${escapeHtml(state.bucket)}”</button>`;
+      panel.innerHTML = `<p class="eyebrow danger-text">Irreversible action</p><h3>Delete this bucket</h3><p>The console first scans and permanently removes every object version and delete marker, then deletes the bucket. New writes during the scan can still prevent deletion.</p><div class="delete-progress" id="bucket-delete-progress" role="status" aria-live="polite" hidden></div><button class="button danger" id="delete-bucket">Delete versions & “${escapeHtml(state.bucket)}”</button>`;
       panel.querySelector('#delete-bucket')?.addEventListener('click', () => void deleteBucket(dialog));
     }
   } catch (error) { panel.innerHTML = `<div class="panel-error"><strong>Could not read this configuration.</strong><p>${escapeHtml(error instanceof Error ? error.message : 'Unknown S3 error')}</p><button class="button" id="retry-settings">Try again</button></div>`; panel.querySelector('#retry-settings')?.addEventListener('click', () => void renderSettingsPanel(dialog, tab)); }
@@ -296,8 +296,24 @@ function bindJsonEditor(panel: HTMLElement, name: string, save: (value: unknown)
 }
 
 async function deleteBucket(dialog: HTMLDialogElement): Promise<void> {
-  const bucket = state.bucket!; if (!confirm(`Permanently delete the empty bucket “${bucket}”?\n\nThe console cannot undo this.`)) return;
-  try { await state.client!.deleteBucket(bucket); state.bucket = undefined; state.objects = []; dialog.close(); await refreshBuckets(); notice(`Bucket “${bucket}” deleted.`, 'success'); } catch (error) { notice(error instanceof Error ? error.message : 'Could not delete bucket', 'error'); }
+  const bucket = state.bucket!;
+  if (!confirm(`Permanently delete “${bucket}” and every object version and delete marker in it?\n\nThis cannot be undone.`)) return;
+  const button = dialog.querySelector<HTMLButtonElement>('#delete-bucket')!;
+  const progress = dialog.querySelector<HTMLElement>('#bucket-delete-progress')!;
+  const showProgress = (message: string, failed = false) => { progress.hidden = false; progress.classList.toggle('failed', failed); progress.textContent = message; };
+  setBusy(button, true, 'Deleting safely…');
+  showProgress('Scanning object version history…');
+  try {
+    await state.client!.deleteBucketWithVersions(bucket, update => {
+      if (update.phase === 'listing') showProgress(`Scanning object version history… ${update.discovered} found.`);
+      else if (update.phase === 'deleting') showProgress(`Removing versions and delete markers… ${update.deleted} of ${update.discovered} removed.`);
+      else showProgress(`Version cleanup complete (${update.deleted} removed). Deleting bucket…`);
+    });
+    state.bucket = undefined; state.objects = []; dialog.close(); await refreshBuckets(); notice(`Bucket “${bucket}” and its version history deleted.`, 'success');
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Could not delete bucket';
+    showProgress(`Stopped safely: ${message}`, true); setBusy(button, false); notice(message, 'error');
+  }
 }
 
 function disconnect(): void {
@@ -316,4 +332,21 @@ window.addEventListener('offline', () => notice('You are offline. Existing S3 ac
 window.addEventListener('online', () => notice('Back online. You can retry the last action.', 'success'));
 document.documentElement.dataset.theme = localStorage.getItem('s3-theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
 restore(); route();
-if ('serviceWorker' in navigator && import.meta.env.PROD) window.addEventListener('load', () => void navigator.serviceWorker.register('/sw.js'));
+if ('serviceWorker' in navigator && import.meta.env.PROD) window.addEventListener('load', () => {
+  const offerUpdate = (registration: ServiceWorkerRegistration) => {
+    const waiting = registration.waiting;
+    if (!waiting || !navigator.serviceWorker.controller || document.querySelector('#sw-update')) return;
+    const toast = document.createElement('div'); toast.className = 'toast info'; toast.id = 'sw-update'; toast.setAttribute('role', 'status');
+    toast.innerHTML = '<span aria-hidden="true">i</span><p>An updated console is ready.</p><button type="button">Reload</button>';
+    document.body.append(toast);
+    toast.querySelector('button')?.addEventListener('click', () => waiting.postMessage({ type: 'SKIP_WAITING' }));
+  };
+  void navigator.serviceWorker.register('/sw.js').then(registration => {
+    offerUpdate(registration);
+    registration.addEventListener('updatefound', () => {
+      const worker = registration.installing;
+      worker?.addEventListener('statechange', () => { if (worker.state === 'installed') offerUpdate(registration); });
+    });
+  });
+  navigator.serviceWorker.addEventListener('controllerchange', () => location.reload());
+});
