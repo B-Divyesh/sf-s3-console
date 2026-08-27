@@ -1,5 +1,6 @@
 FROM node:22-alpine AS build
 WORKDIR /app
+RUN chown node:node /app
 COPY --chown=node:node package.json package-lock.json ./
 USER node
 RUN npm ci --ignore-scripts --no-audit --no-fund
