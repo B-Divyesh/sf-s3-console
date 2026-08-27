@@ -15,8 +15,8 @@ Light is the primary treatment because object inventories benefit from paper-lik
 | ink / text | `#17201D` | `#F5F0DF` | high-contrast primary ink |
 | muted | `#5D665F` | `#B9C0B8` | secondary copy (both ≥4.5:1) |
 | line | `#17201D` | `#F5F0DF` | structural 2px rules |
-| signal | `#FF5C35` | `#FF7757` | primary action / active location |
-| signal ink | `#171512` | `#151817` | action label |
+| signal | `#C83216` | `#FF7757` | primary action / active location; deep safety orange meets text contrast in light mode |
+| signal ink | `#FFFDF5` | `#151817` | action label |
 | electric | `#B9F227` | `#C7FA44` | connected/success, selected utility |
 | warning | `#F2B705` | `#FFD052` | incomplete or risky state |
 | danger | `#C52D36` | `#FF767D` | destructive state |

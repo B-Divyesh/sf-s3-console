@@ -1,0 +1,13 @@
+{
+  "navigationFallback": {
+    "rewrite": "/index.html",
+    "exclude": ["/assets/*.{webp,png,jpg,jpeg,svg,woff,woff2,css,js}", "/favicon.svg", "/robots.txt", "/sitemap.xml", "/sw.js", "/manifest.webmanifest"]
+  },
+  "globalHeaders": {
+    "content-security-policy": "default-src 'self'; connect-src *; img-src 'self' blob: data:; style-src 'self'; script-src 'self'; font-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'",
+    "referrer-policy": "no-referrer",
+    "x-content-type-options": "nosniff",
+    "permissions-policy": "camera=(), microphone=(), geolocation=()"
+  },
+  "mimeTypes": { ".webmanifest": "application/manifest+json" }
+}

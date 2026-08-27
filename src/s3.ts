@@ -57,6 +57,12 @@ function escapeXml(value: string): string {
   return value.replace(/[<>&'\"]/g, char => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' })[char]!);
 }
 
+async function checksumHeaders(body: string, contentType = 'application/xml'): Promise<Record<string, string>> {
+  const bytes = new Uint8Array(await sha256(body));
+  const binary = [...bytes].map(byte => String.fromCharCode(byte)).join('');
+  return { 'content-type': contentType, 'x-amz-sdk-checksum-algorithm': 'SHA256', 'x-amz-checksum-sha256': btoa(binary) };
+}
+
 export class S3Client {
   constructor(readonly connection: Connection) {}
 
@@ -129,7 +135,7 @@ export class S3Client {
     const objects = [...doc.getElementsByTagName('Contents')].map(node => ({
       key: xmlText(node, 'Key') || '', size: Number(xmlText(node, 'Size') || 0), modified: xmlText(node, 'LastModified'),
       etag: xmlText(node, 'ETag')?.replaceAll('"', ''), storageClass: xmlText(node, 'StorageClass')
-    }));
+    })).filter(object => object.key !== prefix && !(object.key.endsWith('/') && object.size === 0));
     const prefixes = [...doc.getElementsByTagName('CommonPrefixes')].map(node => xmlText(node, 'Prefix') || '').filter(Boolean);
     return { objects, prefixes, nextToken: xmlText(doc, 'NextContinuationToken') };
   }
@@ -152,7 +158,7 @@ export class S3Client {
         if (!etag) throw new Error('The store did not expose the ETag header. Add ETag to CORS ExposeHeaders.');
         parts.push({ number, etag }); onProgress(Math.min(0.98, (offset + chunk.size) / file.size));
       }
-      const complete = `<CompleteMultipartUpload>${parts.map(part => `<Part><PartNumber>${part.number}</PartNumber><ETag>"${escapeXml(part.etag)}"</ETag></Part>`).join('')}</CompleteMultipartUpload>`;
+      const complete = `<CompleteMultipartUpload xmlns="http://s3.amazonaws.com/doc/2006-03-01/">${parts.map(part => `<Part><PartNumber>${part.number}</PartNumber><ETag>"${escapeXml(part.etag)}"</ETag></Part>`).join('')}</CompleteMultipartUpload>`;
       await this.signedFetch('POST', bucket, key, { uploadId }, complete, { 'content-type': 'application/xml' });
       onProgress(1);
     } catch (error) {
@@ -183,15 +189,15 @@ export class S3Client {
   }
 
   async putTags(bucket: string, key: string, tags: Record<string, string>): Promise<void> {
-    const body = `<Tagging><TagSet>${Object.entries(tags).map(([key, value]) => `<Tag><Key>${escapeXml(key)}</Key><Value>${escapeXml(value)}</Value></Tag>`).join('')}</TagSet></Tagging>`;
-    await this.signedFetch('PUT', bucket, key, { tagging: '' }, body, { 'content-type': 'application/xml' });
+    const body = `<Tagging xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><TagSet>${Object.entries(tags).map(([key, value]) => `<Tag><Key>${escapeXml(key)}</Key><Value>${escapeXml(value)}</Value></Tag>`).join('')}</TagSet></Tagging>`;
+    await this.signedFetch('PUT', bucket, key, { tagging: '' }, body, await checksumHeaders(body));
   }
 
   async getPolicy(bucket: string): Promise<string> {
     try { return await (await this.signedFetch('GET', bucket, '', { policy: '' })).text(); }
     catch (error) { if (error instanceof Error && /NoSuchBucketPolicy/i.test(error.message)) return ''; throw error; }
   }
-  async putPolicy(bucket: string, policy: string): Promise<void> { await this.signedFetch('PUT', bucket, '', { policy: '' }, policy, { 'content-type': 'application/json' }); }
+  async putPolicy(bucket: string, policy: string): Promise<void> { await this.signedFetch('PUT', bucket, '', { policy: '' }, policy, await checksumHeaders(policy, 'application/json')); }
   async deletePolicy(bucket: string): Promise<void> { await this.signedFetch('DELETE', bucket, '', { policy: '' }); }
 
   async getVersioning(bucket: string): Promise<'Enabled' | 'Suspended'> {
@@ -199,7 +205,8 @@ export class S3Client {
     return /<Status>Enabled<\/Status>/.test(text) ? 'Enabled' : 'Suspended';
   }
   async putVersioning(bucket: string, status: 'Enabled' | 'Suspended'): Promise<void> {
-    await this.signedFetch('PUT', bucket, '', { versioning: '' }, `<VersioningConfiguration xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><Status>${status}</Status></VersioningConfiguration>`, { 'content-type': 'application/xml' });
+    const body = `<VersioningConfiguration xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><Status>${status}</Status></VersioningConfiguration>`;
+    await this.signedFetch('PUT', bucket, '', { versioning: '' }, body, await checksumHeaders(body));
   }
 
   async getCors(bucket: string): Promise<CorsRule[]> {
@@ -214,8 +221,8 @@ export class S3Client {
     } catch (error) { if (error instanceof Error && /NoSuchCORSConfiguration/i.test(error.message)) return []; throw error; }
   }
   async putCors(bucket: string, rules: CorsRule[]): Promise<void> {
-    const body = `<CORSConfiguration>${rules.map(rule => `<CORSRule>${rule.id ? `<ID>${escapeXml(rule.id)}</ID>` : ''}${rule.origins.map(v => `<AllowedOrigin>${escapeXml(v)}</AllowedOrigin>`).join('')}${rule.methods.map(v => `<AllowedMethod>${escapeXml(v)}</AllowedMethod>`).join('')}${(rule.headers || []).map(v => `<AllowedHeader>${escapeXml(v)}</AllowedHeader>`).join('')}${(rule.exposeHeaders || []).map(v => `<ExposeHeader>${escapeXml(v)}</ExposeHeader>`).join('')}${rule.maxAgeSeconds ? `<MaxAgeSeconds>${rule.maxAgeSeconds}</MaxAgeSeconds>` : ''}</CORSRule>`).join('')}</CORSConfiguration>`;
-    await this.signedFetch('PUT', bucket, '', { cors: '' }, body, { 'content-type': 'application/xml' });
+    const body = `<CORSConfiguration xmlns="http://s3.amazonaws.com/doc/2006-03-01/">${rules.map(rule => `<CORSRule>${rule.id ? `<ID>${escapeXml(rule.id)}</ID>` : ''}${rule.origins.map(v => `<AllowedOrigin>${escapeXml(v)}</AllowedOrigin>`).join('')}${rule.methods.map(v => `<AllowedMethod>${escapeXml(v)}</AllowedMethod>`).join('')}${(rule.headers || []).map(v => `<AllowedHeader>${escapeXml(v)}</AllowedHeader>`).join('')}${(rule.exposeHeaders || []).map(v => `<ExposeHeader>${escapeXml(v)}</ExposeHeader>`).join('')}${rule.maxAgeSeconds ? `<MaxAgeSeconds>${rule.maxAgeSeconds}</MaxAgeSeconds>` : ''}</CORSRule>`).join('')}</CORSConfiguration>`;
+    await this.signedFetch('PUT', bucket, '', { cors: '' }, body, await checksumHeaders(body));
   }
 
   async getLifecycle(bucket: string): Promise<LifecycleRule[]> {
@@ -226,8 +233,8 @@ export class S3Client {
     } catch (error) { if (error instanceof Error && /NoSuchLifecycleConfiguration/i.test(error.message)) return []; throw error; }
   }
   async putLifecycle(bucket: string, rules: LifecycleRule[]): Promise<void> {
-    const body = `<LifecycleConfiguration>${rules.map(rule => `<Rule><ID>${escapeXml(rule.id)}</ID><Filter><Prefix>${escapeXml(rule.prefix)}</Prefix></Filter><Status>${rule.status}</Status>${rule.expirationDays ? `<Expiration><Days>${rule.expirationDays}</Days></Expiration>` : ''}${rule.noncurrentDays ? `<NoncurrentVersionExpiration><NoncurrentDays>${rule.noncurrentDays}</NoncurrentDays></NoncurrentVersionExpiration>` : ''}</Rule>`).join('')}</LifecycleConfiguration>`;
-    await this.signedFetch('PUT', bucket, '', { lifecycle: '' }, body, { 'content-type': 'application/xml' });
+    const body = `<LifecycleConfiguration xmlns="http://s3.amazonaws.com/doc/2006-03-01/">${rules.map(rule => `<Rule><ID>${escapeXml(rule.id)}</ID><Filter><Prefix>${escapeXml(rule.prefix)}</Prefix></Filter><Status>${rule.status}</Status>${rule.expirationDays ? `<Expiration><Days>${rule.expirationDays}</Days></Expiration>` : ''}${rule.noncurrentDays ? `<NoncurrentVersionExpiration><NoncurrentDays>${rule.noncurrentDays}</NoncurrentDays></NoncurrentVersionExpiration>` : ''}</Rule>`).join('')}</LifecycleConfiguration>`;
+    await this.signedFetch('PUT', bucket, '', { lifecycle: '' }, body, await checksumHeaders(body));
   }
 
   async presign(method: 'GET' | 'PUT', bucket: string, key: string, expires: number): Promise<string> {

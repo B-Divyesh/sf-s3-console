@@ -114,7 +114,7 @@ function renderConnect(): void {
           <button class="button primary wide" type="submit">Test & connect <span aria-hidden="true">→</span></button><p class="form-status" aria-live="polite"></p>
         </form>
       </section>
-      <section id="cors-help" class="cors-help"><p class="eyebrow">Required once per endpoint</p><h2>Browser access needs CORS.</h2><p>Add the console origin to your store’s CORS rules, allow GET, PUT, POST, DELETE and HEAD, and expose ETag for multipart uploads.</p><pre><code>{
+      <section id="cors-help" class="cors-help"><p class="eyebrow">Required once per endpoint</p><h2>Browser access needs CORS.</h2><p>Add the console origin to your store’s CORS rules, allow GET, PUT, POST, DELETE and HEAD, and expose ETag for multipart uploads.</p><pre tabindex="0"><code>{
   "AllowedOrigins": ["https://s3-console.sociobot.in"],
   "AllowedMethods": ["GET", "PUT", "POST", "DELETE", "HEAD"],
   "AllowedHeaders": ["*"], "ExposeHeaders": ["ETag"]
@@ -141,7 +141,7 @@ async function connect(event: Event): Promise<void> {
 function renderConsole(): void {
   app.innerHTML = `<div class="console-shell"><header class="console-head"><button class="mobile-nav" id="mobile-nav" aria-label="Show buckets">${icons.bucket}</button><a class="brand compact" href="/">${icons.mark}<h1>S3 Console</h1></a>
     <div class="endpoint-chip"><i></i><span><strong>Connected</strong>${escapeHtml(new URL(state.connection!.endpoint).host)}</span></div>
-    <div class="console-actions">${themeButton()}<button class="button small" id="disconnect">Disconnect</button></div></header>
+    <div class="console-actions">${themeButton()}<button class="button small" id="disconnect" title="Disconnect">Disconnect</button></div></header>
     <aside class="bucket-rail" id="bucket-rail"><div class="rail-label"><span>Buckets</span><b>${state.buckets.length.toString().padStart(2, '0')}</b></div><button class="button rail-create" id="create-bucket">＋ Create bucket</button><nav aria-label="Buckets"><ul class="bucket-list">${state.buckets.map(bucket => `<li><button data-bucket="${escapeHtml(bucket.name)}" class="${bucket.name === state.bucket ? 'active' : ''}">${icons.bucket}<span>${escapeHtml(bucket.name)}</span></button></li>`).join('')}</ul></nav><div class="rail-foot"><span>Region</span><strong>${escapeHtml(state.connection!.region)}</strong><span>Addressing</span><strong>${state.connection!.pathStyle ? 'Path-style' : 'Virtual host'}</strong></div></aside>
     <main id="main" class="object-workspace">${workspaceHtml()}</main></div>`;
   bindConsole(); bindTheme();
@@ -175,17 +175,22 @@ function bindConsole(): void {
   document.querySelectorAll<HTMLButtonElement>('[data-bucket]').forEach(button => button.addEventListener('click', () => selectBucket(button.dataset.bucket!)));
   ['#create-bucket', '#empty-create'].forEach(selector => document.querySelector(selector)?.addEventListener('click', createBucketDialog));
   document.querySelector('#bucket-settings')?.addEventListener('click', bucketSettingsDialog);
+  document.querySelector('#upload')?.addEventListener('click', () => document.querySelector<HTMLInputElement>('#file-input')?.click());
+  document.querySelector('#file-input')?.addEventListener('change', event => void uploadFiles((event.target as HTMLInputElement).files));
+  document.querySelector('#new-folder')?.addEventListener('click', newFolder);
+  document.querySelector('#object-filter')?.addEventListener('input', event => { state.filter = (event.target as HTMLInputElement).value; document.querySelector('.ledger')!.innerHTML = ledgerHtml(state.prefixes.filter(p => p.toLowerCase().includes(state.filter.toLowerCase())), state.objects.filter(o => o.key.toLowerCase().includes(state.filter.toLowerCase())), state.prefix ? state.prefix.replace(/[^/]+\/$/, '') : ''); bindLedger(); });
+  bindLedger();
+}
+
+function bindLedger(): void {
   document.querySelectorAll<HTMLButtonElement>('[data-prefix]').forEach(button => button.addEventListener('click', () => { state.prefix = button.dataset.prefix!; state.filter = ''; void loadObjects(); }));
   document.querySelectorAll<HTMLButtonElement>('[data-object]').forEach(button => button.addEventListener('click', () => void objectDialog(button.dataset.object!)));
   document.querySelectorAll<HTMLButtonElement>('[data-download]').forEach(button => button.addEventListener('click', () => void downloadObject(button.dataset.download!)));
   document.querySelectorAll<HTMLButtonElement>('[data-link]').forEach(button => button.addEventListener('click', () => presignDialog(button.dataset.link!)));
   document.querySelectorAll<HTMLButtonElement>('[data-delete]').forEach(button => button.addEventListener('click', () => void deleteObject(button.dataset.delete!)));
-  ['#upload', '#empty-upload'].forEach(selector => document.querySelector(selector)?.addEventListener('click', () => document.querySelector<HTMLInputElement>('#file-input')?.click()));
-  document.querySelector('#file-input')?.addEventListener('change', event => void uploadFiles((event.target as HTMLInputElement).files));
-  document.querySelector('#new-folder')?.addEventListener('click', newFolder);
+  document.querySelector('#empty-upload')?.addEventListener('click', () => document.querySelector<HTMLInputElement>('#file-input')?.click());
   document.querySelector('#load-more')?.addEventListener('click', () => void loadObjects(true));
   document.querySelector('#clear-filter')?.addEventListener('click', () => { state.filter = ''; renderConsole(); });
-  document.querySelector('#object-filter')?.addEventListener('input', event => { state.filter = (event.target as HTMLInputElement).value; document.querySelector('.ledger')!.innerHTML = ledgerHtml(state.prefixes.filter(p => p.toLowerCase().includes(state.filter.toLowerCase())), state.objects.filter(o => o.key.toLowerCase().includes(state.filter.toLowerCase())), state.prefix ? state.prefix.replace(/[^/]+\/$/, '') : ''); bindConsole(); });
 }
 
 async function refreshBuckets(): Promise<void> { state.buckets = await state.client!.listBuckets(); renderConsole(); }
@@ -210,7 +215,7 @@ function openDialog(html: string, className = ''): HTMLDialogElement {
 }
 
 function createBucketDialog(): void {
-  const dialog = openDialog(`<form method="dialog" class="dialog-card" id="bucket-form"><div class="dialog-head"><div><p class="eyebrow">New container</p><h2>Create a bucket</h2></div><button class="icon-button" type="button" data-close aria-label="Close">${icons.close}</button></div><label>Bucket name<input name="name" required minlength="3" maxlength="63" pattern="[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]" autocomplete="off"><small>3–63 lowercase letters, numbers, dots, or hyphens.</small></label><div class="dialog-actions"><button class="button" type="button" data-close>Cancel</button><button class="button primary" type="submit">Create bucket</button></div></form>`);
+  const dialog = openDialog(`<form method="dialog" class="dialog-card" id="bucket-form"><div class="dialog-head"><div><p class="eyebrow">New container</p><h2>Create a bucket</h2></div><button class="icon-button" type="button" data-close aria-label="Close">${icons.close}</button></div><label>Bucket name<input name="name" required minlength="3" maxlength="63" pattern="[a-z0-9][a-z0-9.\\-]{1,61}[a-z0-9]" autocomplete="off"><small>3–63 lowercase letters, numbers, dots, or hyphens.</small></label><div class="dialog-actions"><button class="button" type="button" data-close>Cancel</button><button class="button primary" type="submit">Create bucket</button></div></form>`);
   const form = dialog.querySelector<HTMLFormElement>('form')!; form.addEventListener('submit', async event => { event.preventDefault(); const button = form.querySelector<HTMLButtonElement>('[type="submit"]')!; const name = String(new FormData(form).get('name')); setBusy(button, true); try { await state.client!.createBucket(name); dialog.close(); await refreshBuckets(); await selectBucket(name); notice(`Bucket “${name}” created.`, 'success'); } catch (error) { notice(error instanceof Error ? error.message : 'Could not create bucket', 'error'); setBusy(button, false); } });
 }
 
@@ -222,12 +227,12 @@ async function uploadFiles(files: FileList | null): Promise<void> {
 
 function newFolder(): void {
   if (!state.bucket) return; const name = prompt('Folder name'); if (!name?.trim()) return;
-  const file = new File([''], '.folder', { type: 'application/x-directory' });
-  void state.client!.upload(state.bucket, `${state.prefix}${name.trim().replaceAll('/', '')}/.folder`, file, () => undefined).then(() => loadObjects()).then(() => notice(`Folder “${name.trim()}” created.`, 'success')).catch(error => notice(error instanceof Error ? error.message : 'Could not create folder', 'error'));
+  const file = new File([''], 'folder', { type: 'application/x-directory' });
+  void state.client!.upload(state.bucket, `${state.prefix}${name.trim().replaceAll('/', '')}/`, file, () => undefined).then(() => loadObjects()).then(() => notice(`Folder “${name.trim()}” created.`, 'success')).catch(error => notice(error instanceof Error ? error.message : 'Could not create folder', 'error'));
 }
 
 async function downloadObject(key: string): Promise<void> {
-  try { const blob = await state.client!.download(state.bucket!, key); const url = URL.createObjectURL(blob); const anchor = document.createElement('a'); anchor.href = url; anchor.download = key.split('/').pop() || 'download'; anchor.click(); URL.revokeObjectURL(url); notice('Download started.', 'success'); }
+  try { const blob = await state.client!.download(state.bucket!, key); const url = URL.createObjectURL(blob); const anchor = document.createElement('a'); anchor.href = url; anchor.download = key.split('/').pop() || 'download'; anchor.click(); window.setTimeout(() => URL.revokeObjectURL(url), 1000); notice('Download started.', 'success'); }
   catch (error) { notice(error instanceof Error ? error.message : 'Download failed', 'error'); }
 }
 

@@ -1,0 +1,6 @@
+.git
+.factory/evidence
+assets/src
+dist
+node_modules
+*.log
