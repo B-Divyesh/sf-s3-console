@@ -1,0 +1,9 @@
+{
+  "slug": "s3-console",
+  "title": "Backend-agnostic web console for any S3-compatible object store",
+  "user": "Self-hoster or small-ops engineer running an S3-compatible object store who needs a portable browser UI.",
+  "smallest_useful_product": "A static browser-only S3 console for buckets, objects, metadata, tags, policy, CORS, lifecycle, versioning, multipart transfer and presigned URLs.",
+  "artifact_class": "static-web",
+  "monetization": "free",
+  "constraints": "Credentials stay in browser storage and requests go directly to the configured S3 endpoint. The target must allow browser CORS."
+}
