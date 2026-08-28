@@ -1,45 +1,51 @@
-# S3 Console polish-5 handoff
+# S3 Console review 6 handoff
 
 ## Outcome
 
-Release repair `64375c51c9fde3cf8cfe0d6c58e86200eba046dc` closes every finding in review 5 and all earlier review/polish records. It is deployed to [https://s3-console.sociobot.in](https://s3-console.sociobot.in) as Azure Static Web Apps deployment `3f2ed2d5-0259-4e45-b887-9e418045ad98`.
+Adversarial review 6 is complete at repository base `b7752c260d536aecf8f15b161913f7e97765c0ae`. The verdict is **PASS** with zero findings. The full review is in [`.factory/review-6.md`](review-6.md).
 
-The repair completes claim coverage for versioning suspension, bucket-subdomain routing, free use, and static-host configuration. It also corrects the first-screen fact set, mobile sample-caption order, workflow heading outline, catalog copy, and build identifiers.
+No product code was changed. This handoff and the review are the only intended repository changes.
 
-## How to run and verify
+## What was verified
+
+- Cold live reads at 390 × 844 and 1440 × 900 clearly identify the job, audience, sample action, result, and three required facts above the fold.
+- The live demo opens in one click with realistic data, stays in memory, resets, exits, and reloads offline. A mutation/reset flow produced no normal local/session/IndexedDB data, cookies, off-origin requests, or S3 requests.
+- Every one of the 34 exact commands in `.factory/claims.json` passed individually from `/tmp/s3-console-review6-povFHr/repo`.
+- The complete landing/README copy audit found no sentence above 22 words, banned adjective, unexplained context-breaking term, inconsistent term, unclear heading, or generic action.
+- Every finding from reviews 1–5 and the associated polish/handoff history was rechecked in live behavior and current source; all remain fixed.
+- Live titles, metadata, canonical/OG/Twitter data, icons, route shell, deep links, Back behavior, focus announcements, link destinations, client 404, and HTTP 404 passed.
+- The worker URL verifier passed. Live Axe scans found zero violations on Home, Demo, Privacy, Terms, client 404, and static HTTP 404 at phone and desktop sizes.
+- The visual treatment remains consistent with `.factory/design.md` and distinct from a generic SaaS template.
+- No missing AI, import/export, or sync feature is implied by the brief; upload/download cover the expected transfer path.
+
+## Reproduce
 
 ```sh
 npm ci
 npm run lint
-npm test
-npm run build
-npm run test:claims
+npm run test:clean
 npm run test:browser
 ```
 
-For the real direct-client integration, run a disposable MinIO server and then:
+To rerun a claim independently, use the exact `test` command for its entry in `.factory/claims.json`. To verify the live shell:
 
 ```sh
-MINIO_ENDPOINT=http://127.0.0.1:9000 \
-MINIO_ACCESS_KEY=minioadmin MINIO_SECRET_KEY=minioadmin \
-npm run test:minio
+mkdir -p /tmp/s3-console-review6-live
+VERIFY_NODE_MODULES=/work/repo/node_modules \
+  /opt/fleet/lib/verify-url.sh \
+  https://s3-console.sociobot.in \
+  /tmp/s3-console-review6-live
 ```
 
-The direct sample URL is `https://s3-console.sociobot.in/?demo=1` (also `/demo`). It is in-memory only; Reset demo replaces the seed and Start for real discards it.
+Observed clean-clone results: lint passed; `test:clean` passed 16 tests with only the documented endpoint-gated MinIO integration skipped; the production build wrote `dist/`; browser tests passed 38/38; application JavaScript was 61.38 kB raw and 18.81 kB gzip.
 
-## Exact verification evidence
+## Evidence
 
-- Fresh remote clone: `/tmp/s3-console-polish-5-clean.NiqNOR/repo` at repair commit `64375c5`.
-- `npm ci` completed with 0 vulnerabilities. Every one of the 34 exact commands listed in `.factory/claims.json` passed individually in that clone.
-- Clean-clone `npm run lint` passed. `npm test` passed 16 tests; the endpoint-gated MinIO test was skipped only in that no-endpoint invocation. `npm run build` produced `dist/` with 61.38 kB raw / 18.81 kB gzip application JS.
-- Clean-clone `npm run test:browser` passed 38/38, including Playwright Axe, keyboard route behavior, 390 px target/overflow, privacy interception, demo reset, offline shell/cache boundary, and the new claim tests.
-- A disposable local `MinIO RELEASE.2025-09-07T16-13-09Z` binary ran `npm run test:minio` successfully: 1/1 direct-client test passed, including 8 MiB-plus multipart byte round-trip and version/delete-marker cleanup.
-- `/opt/fleet/lib/verify-url.sh https://s3-console.sociobot.in /tmp/s3-console-polish-5-live` passed. `/tmp/s3-console-polish-5-live/verify.json` records HTTP 200, no console/page errors, title, `lang=en`, one h1, main, image alt, and button-label checks.
-- Live Axe report `/tmp/s3-console-polish-5-live/axe.json` has zero violations on home, demo, privacy, terms, client 404, and real HTTP static 404.
-- Live finding recheck `/tmp/s3-console-polish-5-live/finding-recheck.json` proves facts/caption/heading/URL-format, demo reset/isolation, and both versioning states. `/tmp/s3-console-polish-5-live/offline-live.json` proves a cold live `/demo` reload while offline.
-- Live mobile Lighthouse `/tmp/s3-console-polish-5-live/lighthouse-clean.json`: performance 100, accessibility 100, best practices 100, SEO 100; LCP 1.35 s, CLS 0, TBT 21 ms.
-- Screenshots: `/tmp/s3-console-polish-5-home-390.png`, `/tmp/s3-console-polish-5-demo-390.png`, `/tmp/s3-console-polish-5-404-390.png`, `/tmp/s3-console-polish-5-live/home-390-findings.png`, and `/tmp/s3-console-polish-5-live/demo-1440-findings.png`.
+- Review report: `.factory/review-6.md`
+- Worker verifier output: `/tmp/review6-verify/verify.json`
+- Phone screenshots: `/tmp/review6-phone.png`, `/tmp/review6-demo-phone.png`
+- Clean clone: `/tmp/s3-console-review6-povFHr/repo`
 
 ## Known gaps and next steps
 
-None. No review finding, claim, quality gate, or live check is pending.
+None within the brief or supplied review criteria. The MinIO integration remains intentionally endpoint-gated and is not a declared claim test; the browser multipart and version-aware deletion contracts passed.
