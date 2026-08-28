@@ -1,45 +1,19 @@
-# S3 Console polish-4 handoff
+# S3 Console review-5 handoff
 
 ## Outcome
 
-Polish round 4 is complete. Commit `ccb6ac6057ecf12ece9b4d9c1dc8e4ed452ce962` repairs the remaining review-4 mobile-navigation regression and copy drift, is pushed to `main`, and is deployed as Azure Static Web Apps deployment `e1bef7c9-547d-40b2-85e4-b9e4689bb2b0`.
+Adversarial review 5 is complete at base `cbbdf3ba149fd44c4ab609e95aa4d168b2fbe6f9`. The verdict is **FAIL** with one blocking claims-coverage regression and five minor findings. Product code was not changed. See `.factory/review-5.md` for exact evidence and fixes.
 
-The mobile console now has a separate keyboard-operated route Menu. It exposes Home, Demo, and Privacy below the persistent demo banner without replacing the bucket control. Landing and README wording now consistently says “S3-compatible object store,” and the copy audit contains the complete landing/route-shell and README inventory.
+## Verification performed
 
-## Verification
+- Fresh live Chromium contexts at 390 × 844 and 1440 × 900 for the unscrolled landing page and one-click demo.
+- All 31 exact `.factory/claims.json` commands passed individually from `/tmp/s3-console-review5-clean.FVttaK/repo` after `npm ci`.
+- `npm run lint`, `npm run test:clean`, and `npm run test:browser` passed; browser suite result: 35/35.
+- Disposable MinIO `RELEASE.2025-09-07T16-13-09Z` passed the optional multipart/version-cleanup integration.
+- Live demo mutation/reset, request/storage/cookie inspection, offline/cache claim coverage, route metadata, mobile navigation, history/focus, link crawl, HTTP 404, security/cache headers, and visual identity were checked.
+- `/opt/fleet/lib/verify-url.sh` passed with one h1/main, `lang=en`, no missing image alt, no unlabeled buttons, and no console/page errors.
+- Playwright Axe coverage passed with no serious or critical findings on home, demo, privacy, terms, and 404.
 
-- Clean clone: `/tmp/s3-console-polish4-clean.LUPQ0p/repo`; `npm ci` completed with 0 vulnerabilities.
-- Every one of the 31 exact commands declared in `.factory/claims.json` passed individually from that clone.
-- `npm run lint` passed.
-- `npm run test:clean` passed: 16 tests passed; the one environment-gated MinIO test was skipped in the no-endpoint unit run.
-- Pinned MinIO `RELEASE.2025-09-07T16-13-09Z` then passed multipart byte round-trip plus version/delete-marker bucket cleanup.
-- `npm run test:browser` passed: 35 tests, including the new 390 px bucket/menu route-shell and keyboard/focus check. It includes offline, privacy, storage, metadata, routing, mobile, and Axe coverage.
-- Local Lighthouse mobile: performance 100, accessibility 100, best practices 100, SEO 100; LCP 1.7 s, CLS 0, TBT 0 ms.
-- Cold live Lighthouse mobile: performance 100, accessibility 100, best practices 100, SEO 100; LCP 1.4 s, CLS 0, TBT 40 ms.
-- `verify-url.sh` passed at the custom domain. `/tmp/s3-console-polish-4-verify/verify.json` reports a title, `lang=en`, one h1, a main landmark, zero missing image alts, zero unlabeled buttons, and zero console/page errors.
-- Fresh 390 px live contexts verified `/`, `/?demo=1`, `/demo`, `/privacy`, `/terms`, client 404, and static missing-asset 404. The opened demo menu had visible/topmost Home, Demo, and Privacy controls, all 48 px high; its Axe scan had zero serious/critical issues.
-- Deployed JS/CSS SHA-256 values match `dist/` exactly. Root cache-control is `no-cache, max-age=0, must-revalidate`; hashed assets are `public, max-age=31536000, immutable`.
+## Remaining work
 
-Screenshots: `/tmp/s3-console-polish-4-live-home-390.png`, `/tmp/s3-console-polish-4-live-demo-menu-390.png`, and `/tmp/s3-console-polish-4-live-404-390.png`. The complete finding-to-change-to-evidence mapping is `.factory/polish-4.md`.
-
-## Run locally
-
-```sh
-npm ci
-npm run lint
-npm run test:clean
-npm run test:browser
-npm run test:claims
-```
-
-For the optional real S3 regression, start a disposable MinIO endpoint and run:
-
-```sh
-MINIO_ENDPOINT=http://127.0.0.1:9000 \
-MINIO_ACCESS_KEY=minioadmin MINIO_SECRET_KEY=minioadmin \
-npm run test:minio
-```
-
-## Known gaps and next steps
-
-None. Every finding in review 1 through review 4 is covered by the shipped implementation and recorded verification evidence.
+Resolve F-5-1 through F-5-6: complete the first-screen fact set, keep the mobile demo caption with its action, test versioning suspension, register/test bucket-subdomain routing, register the deployment configuration claim, and make the three workflow headings self-contained. Re-run the full review after deployment.
