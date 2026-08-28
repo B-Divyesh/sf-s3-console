@@ -1,33 +1,20 @@
-# S3 Console polish-2 handoff
+# S3 Console review-3 handoff
 
-Commit `ff2cd1600f88daba9a45678a69f316e360e1c71d` closes review-2 and all earlier review findings. It is pushed to `main` and deployed through `/opt/fleet/lib/deploy-static.sh s3-console dist`.
+Reviewer-only documentation update at `f04c771b34ddea04253ed16ff5815ac1e33fc89c`. No product code or deployment configuration was changed.
 
-## Delivered
+## What was done
 
-- `npm test` builds first; `npm run test:clean` proves it works without a pre-existing `dist/`.
-- The static HTTP 404 has complete metadata, navigation, footer, noindex, and product styling.
-- The unverified price wording was removed. Multipart and default path-style behavior have observable claim tests.
-- Object inspectors support metadata/tag-preserving Copy object and Move object. Move deletes only after a successful copy; demo supports both paths.
-- The manifest has 29 claims. Catalog copy is verb-first and under 120 characters.
+- Performed fresh 390 px and desktop live reads, entered the sample workspace, and checked reset, direct demo URLs, static/client 404s, metadata, routing, links, and visual identity.
+- Read all prior reviews, polish records, verification records, and the previous handoff; rechecked their fixes in the live app and source.
+- Created a clean clone at `/tmp/s3-console-review3-D803Ya`, ran `npm ci`, and invoked every exact command listed by the 29 entries in `.factory/claims.json`.
+- Ran `npm run lint`, `npm test`, `npm run test:browser`, and `npm run build` in that clone.
 
-## Exact verification evidence
+## Verification
 
-Fresh clone `/tmp/s3-console-clean-otZo3R`:
+All 29 declared claim commands passed. `npm run lint` passed. `npm test` passed with 16 tests passing and one opt-in MinIO test skipped without its disposable endpoint. `npm run test:browser` passed all 32 Chromium tests. The production build produced `dist/`; main JavaScript is 18.42 kB gzip.
 
-```text
-npm ci                 PASS (0 vulnerabilities)
-npm run lint           PASS
-npm run test:clean     PASS — 16 tests; 1 opt-in MinIO test skipped without endpoint
-npm run test:claims    PASS — 25/25 browser claim tests
-npm run test:browser   PASS — 32 tests, including Axe and 390px touch/overflow checks
-```
-
-Local production verification: `/opt/fleet/lib/verify-url.sh` passed title, `lang`, one h1, main landmark, image alt checks, and zero console errors. Built JS is 60.17 kB / 18.42 kB gzip and CSS is 25.50 kB / 6.09 kB gzip.
-
-Cold production checks at `https://s3-console.sociobot.in` passed: deployed bundle `assets/index-rWlEpJ-g.js`; first screen/demo/copy/move/404 checks had zero console errors and Playwright Axe had zero serious/critical violations. Screenshots: `/tmp/s3-console-polish-2-live-home-390.png`, `/tmp/s3-console-polish-2-live-demo-390.png`, `/tmp/s3-console-polish-2-live-404-390.png`. `GET /assets/missing-review.webp` returned HTTP 404 with canonical, OG/Twitter, touch icon, navigation, and full footer.
-
-`npx @axe-core/cli` could not launch a system Chrome binary in this worker. The equivalent Playwright Axe suite passed locally and in the cold live scan.
+Live link checks returned 200 for documented routes and external links. A missing excluded asset returned HTTP 404 with the complete designed static 404 page. Review screenshots are `/tmp/review3-home-390.png`, `/tmp/review3-home-1440.png`, and `/tmp/review3-demo-390.png`.
 
 ## Known gaps
 
-No product acceptance gaps remain. The optional real-MinIO integration requires a supplied disposable `MINIO_ENDPOINT`; it is intentionally not part of the offline clean-clone claim suite.
+See `.factory/review-3.md`. The verdict is **FAIL** for four documented issues: overly broad credential wording (a regression of U05), missing session-storage assertion in the demo privacy claim, an unclaimed CORS-method instruction, and unexplained `ETag` copy. No implementation changes were made because this work order is review-only.
