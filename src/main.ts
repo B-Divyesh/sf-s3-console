@@ -1,5 +1,5 @@
 import './style.css';
-import { S3Client, endpointDiagnostic, type Bucket, type Connection, type CorsRule, type LifecycleRule, type S3Object } from './s3';
+import { S3Client, S3_HTTP_METHODS, endpointDiagnostic, type Bucket, type Connection, type CorsRule, type LifecycleRule, type S3Object } from './s3';
 import { DemoClient, type ConsoleClient } from './demo';
 
 type NoticeKind = 'success' | 'error' | 'info';
@@ -10,8 +10,12 @@ type AppState = {
 
 const app = document.querySelector<HTMLDivElement>('#app')!;
 const state: AppState = { buckets: [], objects: [], prefixes: [], prefix: '', loading: false, filter: '', demo: false };
-const buildId = 'v1.0.0 · polish-2';
+const buildId = 'v1.0.0 · polish-3';
 const siteUrl = 'https://s3-console.sociobot.in';
+const corsMethods = `${S3_HTTP_METHODS.slice(0, -1).join(', ')}, and ${S3_HTTP_METHODS.at(-1)}`;
+const corsStarterRule = JSON.stringify({
+  AllowedOrigins: [siteUrl], AllowedMethods: S3_HTTP_METHODS, AllowedHeaders: ['*'], ExposeHeaders: ['ETag']
+}, null, 2);
 
 const icons: Record<string, string> = {
   mark: '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M3 9 16 3l13 6-13 6L3 9Zm0 7 13 6 13-6M3 23l13 6 13-6"/></svg>',
@@ -131,11 +135,11 @@ function renderConnect(): void {
       <section class="hero-copy"><p class="eyebrow">Portable object-store console // v1.0</p><h1 tabindex="-1">Manage S3-compatible storage <em>from your browser</em></h1>
         <p class="hero-lede">For self-hosters and small ops teams that manage buckets across different storage providers.</p>
         <div class="hero-actions"><a class="button primary" href="/demo">Try it with sample data</a><span>Opens a disposable storage workspace.</span><a class="button" href="#connect-title">Connect your object store</a></div>
-        <ul class="plain-facts"><li>Open source</li><li>Credentials stay in your browser</li><li>Your endpoint must allow browser requests</li></ul>
+        <ul class="plain-facts"><li>Open source</li><li>Your secret key is not sent in storage requests</li><li>Your endpoint must allow browser requests</li></ul>
       </section>
       <section class="connection-zone" aria-labelledby="connect-title">
         <picture class="hero-art"><source media="(max-width: 600px)" srcset="/assets/storage-workbench-mobile.webp"><img src="/assets/storage-workbench.webp" width="960" height="640" alt="Four different industrial storage crates linked to one terminal by orange cables" fetchpriority="high" decoding="async"></picture>
-        <form class="connect-card" id="connect-form"><div class="card-index">01 / CONNECT</div><h2 id="connect-title">Connect your object store</h2><p>Your credentials go only to your chosen storage endpoint.</p>
+        <form class="connect-card" id="connect-form"><div class="card-index">01 / CONNECT</div><h2 id="connect-title">Connect your object store</h2><p>Signed storage requests go only to your chosen endpoint.</p>
           <label>Storage endpoint URL<input name="endpoint" type="url" inputmode="url" required placeholder="https://s3.example.net" autocomplete="url"></label>
           <div class="field-grid"><label>Region<input name="region" required value="us-east-1" autocomplete="off"></label><label>URL format<select name="pathStyle" aria-describedby="url-format-help"><option value="true">Path-style URLs</option><option value="false">Bucket subdomain URLs</option></select><small id="url-format-help">Choose bucket subdomains only when your DNS and certificate support them.</small></label></div>
           <label>Access key ID<input name="accessKey" required autocomplete="username" spellcheck="false"></label>
@@ -147,11 +151,7 @@ function renderConnect(): void {
         </form>
       </section>
       <section class="how-it-works"><p class="eyebrow">Three steps</p><h2>How it works</h2><ol><li><strong>Connect</strong><span>Enter one storage endpoint and access key.</span></li><li><strong>Browse</strong><span>Open buckets and inspect object details.</span></li><li><strong>Change</strong><span>Upload files or edit supported bucket settings.</span></li></ol></section>
-      <section id="cors-help" class="cors-help"><p class="eyebrow">Set up each storage server once</p><h2>Allow browser requests</h2><p>Add this site to the object store’s browser-access rules. Allow the five listed methods. Expose ETag for large uploads.</p><pre tabindex="0"><code>{
-  "AllowedOrigins": ["https://s3-console.sociobot.in"],
-  "AllowedMethods": ["GET", "PUT", "POST", "DELETE", "HEAD"],
-  "AllowedHeaders": ["*"], "ExposeHeaders": ["ETag"]
-}</code></pre></section><section class="scope"><p class="eyebrow">Product boundary</p><h2>Storage operations, not provider accounts</h2><p>The console does not manage users, replication, monitoring, or provider-specific settings.</p></section>
+      <section id="cors-help" class="cors-help"><p class="eyebrow">Set up each storage server once</p><h2>Allow browser requests</h2><p>Add this site to the object store’s browser-access rules. This console sends ${corsMethods} requests. Expose the <code>ETag</code> response header so large uploads can finish.</p><pre tabindex="0"><code>${escapeHtml(corsStarterRule)}</code></pre></section><section class="scope"><p class="eyebrow">Product boundary</p><h2>Storage operations, not provider accounts</h2><p>The console does not manage users, replication, monitoring, or provider-specific settings.</p></section>
     </main>
     ${footer()}`;
   bindChrome();
@@ -364,7 +364,7 @@ async function renderSettingsPanel(dialog: HTMLDialogElement, tab: string): Prom
       panel.querySelector('form')?.addEventListener('submit', event => { event.preventDefault(); const value = String(new FormData(event.currentTarget as HTMLFormElement).get('policy')); try { JSON.parse(value); void state.client!.putPolicy(state.bucket!, value).then(() => notice('Bucket policy saved.', 'success')).catch(error => notice(error.message, 'error')); } catch { notice('Policy is not valid JSON.', 'error'); } });
       panel.querySelector('#delete-policy')?.addEventListener('click', () => { if (confirm(`Remove the bucket policy from “${state.bucket}”?`)) void state.client!.deletePolicy(state.bucket!).then(() => renderSettingsPanel(dialog, tab)).then(() => notice('Bucket policy removed.', 'success')).catch(error => notice(error.message, 'error')); });
     } else if (tab === 'cors') {
-      const rules = await state.client!.getCors(state.bucket!); panel.innerHTML = editorPanel('Cross-origin access', 'CORS rules', 'cors', rules.length ? JSON.stringify(rules, null, 2) : JSON.stringify([{ id: 'browser-console', origins: [location.origin], methods: ['GET','PUT','POST','DELETE','HEAD'], headers: ['*'], exposeHeaders: ['ETag'], maxAgeSeconds: 3600 }], null, 2), 'Rules use arrays for origins, methods, headers, and exposed headers.'); bindJsonEditor(panel, 'cors', value => state.client!.putCors(state.bucket!, value as CorsRule[]));
+      const rules = await state.client!.getCors(state.bucket!); panel.innerHTML = editorPanel('Cross-origin access', 'CORS rules', 'cors', rules.length ? JSON.stringify(rules, null, 2) : JSON.stringify([{ id: 'browser-console', origins: [location.origin], methods: [...S3_HTTP_METHODS], headers: ['*'], exposeHeaders: ['ETag'], maxAgeSeconds: 3600 }], null, 2), 'Rules use arrays for origins, methods, headers, and exposed headers.'); bindJsonEditor(panel, 'cors', value => state.client!.putCors(state.bucket!, value as CorsRule[]));
     } else if (tab === 'lifecycle') {
       const rules = await state.client!.getLifecycle(state.bucket!); panel.innerHTML = editorPanel('Retention automation', 'Lifecycle rules', 'lifecycle', JSON.stringify(rules, null, 2), 'Each rule needs id, status, prefix, and optional expirationDays or noncurrentDays.'); bindJsonEditor(panel, 'lifecycle', value => state.client!.putLifecycle(state.bucket!, value as LifecycleRule[]));
     } else {

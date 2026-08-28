@@ -21,7 +21,7 @@ The console does not manage users, replication, monitoring, or provider-specific
 
 ## Privacy and credentials
 
-Your browser signs storage requests and sends them to the endpoint you choose. The secret key is never sent in a request.
+Your browser signs storage requests and sends them to the endpoint you choose. Your secret key is not sent in storage requests.
 
 Connections use session storage by default. “Remember on this device” uses local storage. Disconnecting clears both copies.
 
@@ -63,7 +63,9 @@ The object store must allow requests from the console's web address. Start with 
 }
 ```
 
-Replace the web address when self-hosting. Large uploads require the object store to expose its ETag response header.
+Replace the web address when self-hosting. These are the five request methods the console sends.
+
+Expose the `ETag` response header so large uploads can finish. Some object stores label this setting “exposed response headers.”
 
 Browsers block HTTPS pages from calling HTTP endpoints. Use HTTPS for the object store when this console uses HTTPS.
 

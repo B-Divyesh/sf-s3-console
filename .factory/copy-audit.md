@@ -10,9 +10,9 @@ Audited 28 August 2026. Counts treat hyphenated terms as one word. No retained s
 | Opens a disposable storage workspace. | 5 | Pass |
 | Connect your object store. | 4 | Pass |
 | Open source. | 2 | Pass — covered by `open-source`. |
-| Credentials stay in your browser. | 5 | Pass |
+| Your secret key is not sent in storage requests. | 9 | Pass — covered by `credential-routing`. |
 | Your endpoint must allow browser requests. | 6 | Pass |
-| Your credentials go only to your chosen storage endpoint. | 9 | Pass |
+| Signed storage requests go only to your chosen endpoint. | 9 | Pass — covered by `credential-routing`. |
 | Choose bucket subdomains only when your DNS and certificate support them. | 11 | Pass |
 | Saves credentials in this browser until you disconnect. | 8 | Pass |
 | Leave off on shared machines. | 5 | Pass |
@@ -22,8 +22,8 @@ Audited 28 August 2026. Counts treat hyphenated terms as one word. No retained s
 | Upload files or edit supported bucket settings. | 7 | Pass |
 | Copy objects or move them after a successful copy. | 9 | Pass — covered by object-copy/object-move. |
 | Add this site to the object store's browser-access rules. | 9 | Pass |
-| Allow the five listed methods. | 5 | Pass |
-| Expose ETag for large uploads. | 5 | Pass |
+| This console sends GET, PUT, POST, DELETE, and HEAD requests. | 10 | Pass — covered by `cors-starter-rule`. |
+| Expose the `ETag` response header so large uploads can finish. | 10 | Pass — covered by `multipart-upload`. |
 | The console does not manage users, replication, monitoring, or provider-specific settings. | 11 | Pass |
 | The console has no account system, analytics, cookies, or tracking. | 10 | Pass |
 | Connection details use session storage by default. | 7 | Pass |
@@ -33,6 +33,15 @@ Audited 28 August 2026. Counts treat hyphenated terms as one word. No retained s
 | The service worker caches public console files. | 7 | Pass |
 | It does not cache storage responses, bucket names, objects, or credentials. | 11 | Pass |
 | Manage S3-compatible storage from your browser. | 6 | Pass |
+
+## README sentences changed in polish 3
+
+| Copy | Words | Result |
+| --- | ---: | --- |
+| Your secret key is not sent in storage requests. | 9 | Pass — covered by `credential-routing`. |
+| These are the five request methods the console sends. | 9 | Pass — covered by `cors-starter-rule`. |
+| Expose the `ETag` response header so large uploads can finish. | 10 | Pass — covered by `multipart-upload`. |
+| Some object stores label this setting “exposed response headers.” | 9 | Pass |
 
 ## Terminology
 

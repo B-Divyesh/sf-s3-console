@@ -1,4 +1,4 @@
-import type { Bucket, BucketDeleteProgress, CorsRule, LifecycleRule, ObjectPage, S3Object } from './s3';
+import { S3_HTTP_METHODS, type Bucket, type BucketDeleteProgress, type CorsRule, type LifecycleRule, type ObjectPage, type S3Object } from './s3';
 
 export interface ConsoleClient {
   listBuckets(): Promise<Bucket[]>;
@@ -39,7 +39,7 @@ function seededBuckets(): Map<string, DemoBucket> {
   const make = (name: string, objects: DemoObject[], versioning: 'Enabled' | 'Suspended' = 'Suspended'): DemoBucket => ({
     name, created: '2026-08-20T09:00:00.000Z', objects: new Map(objects.map(item => [item.key, item])), versioning,
     policy: JSON.stringify({ Version: '2012-10-17', Statement: [{ Sid: 'PublicSiteRead', Effect: 'Allow', Principal: '*', Action: 's3:GetObject', Resource: `arn:aws:s3:::${name}/*` }] }),
-    cors: [{ id: 'browser-console', origins: ['https://s3-console.sociobot.in'], methods: ['GET', 'PUT', 'POST', 'DELETE', 'HEAD'], headers: ['*'], exposeHeaders: ['ETag'], maxAgeSeconds: 3600 }],
+    cors: [{ id: 'browser-console', origins: ['https://s3-console.sociobot.in'], methods: [...S3_HTTP_METHODS], headers: ['*'], exposeHeaders: ['ETag'], maxAgeSeconds: 3600 }],
     lifecycle: [{ id: 'expire-drafts', status: 'Enabled', prefix: 'drafts/', expirationDays: 30 }]
   });
   return new Map([

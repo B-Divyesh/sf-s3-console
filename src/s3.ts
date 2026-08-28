@@ -16,6 +16,10 @@ export interface BucketDeleteProgress { phase: 'listing' | 'deleting' | 'bucket'
 export interface CorsRule { id?: string; origins: string[]; methods: string[]; headers?: string[]; exposeHeaders?: string[]; maxAgeSeconds?: number }
 export interface LifecycleRule { id: string; status: 'Enabled' | 'Disabled'; prefix: string; expirationDays?: number; noncurrentDays?: number }
 
+/** Every HTTP method the browser client can send to an object store. */
+export const S3_HTTP_METHODS = ['GET', 'PUT', 'POST', 'DELETE', 'HEAD'] as const;
+export type S3HttpMethod = typeof S3_HTTP_METHODS[number];
+
 export function endpointDiagnostic(endpoint: string, pageProtocol: string): string | undefined {
   let url: URL;
   try { url = new URL(endpoint); } catch { return 'Enter a complete storage endpoint URL, including https://.'; }
@@ -131,7 +135,7 @@ export class S3Client {
     return base;
   }
 
-  private async signedFetch(method: string, bucket = '', key = '', params: Record<string, string> = {}, body?: BodyInit | null, headers: Record<string, string> = {}): Promise<Response> {
+  private async signedFetch(method: S3HttpMethod, bucket = '', key = '', params: Record<string, string> = {}, body?: BodyInit | null, headers: Record<string, string> = {}): Promise<Response> {
     const url = this.url(bucket, key, params);
     const now = new Date();
     const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, '');

@@ -34,7 +34,7 @@ describe('host-served static 404 contract', () => {
     for (const required of [
       '<meta name="robots" content="noindex">', '<meta name="description"', '<link rel="canonical"',
       '<meta property="og:title"', '<meta name="twitter:card"', '<link rel="apple-touch-icon"',
-      '<nav aria-label="Main navigation">', 'Built by Param Factory', 'Build v1.0.0 · polish-2'
+      '<nav aria-label="Main navigation">', 'Built by Param Factory', 'Build v1.0.0 · polish-3'
     ]) expect(page).toContain(required);
   });
 });

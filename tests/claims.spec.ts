@@ -1,4 +1,8 @@
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import { once } from 'node:events';
 import { expect, test, type Page } from 'playwright/test';
+import { S3_HTTP_METHODS } from '../src/s3';
 
 async function openDemo(page: Page): Promise<void> {
   await page.goto('/?demo=1');
@@ -188,11 +192,99 @@ test('@claim:presigned-upload creates an expiring upload link', async ({ page })
   await assertSignedLink(page, 'Upload/replace (PUT)', 'PUT');
 });
 
-test('@claim:privacy-boundary sends no demo requests off-origin and sets no cookies', async ({ page, context }) => {
+test('@claim:privacy-boundary keeps a full demo flow out of normal browser storage and off-origin requests', async ({ page, context }) => {
   const offOrigin: string[] = []; page.on('request', request => { if (new URL(request.url()).origin !== 'http://127.0.0.1:4173') offOrigin.push(request.url()); });
   await openDemo(page); await page.getByRole('button', { name: /campaigns/ }).click(); await page.getByRole('button', { name: /autumn/ }).click();
+  await page.getByRole('button', { name: /Create bucket/ }).first().click();
+  await page.getByLabel('Bucket name').fill('privacy-probe');
+  await page.getByRole('dialog').getByRole('button', { name: 'Create bucket' }).click();
+  await page.getByRole('button', { name: 'Reset demo' }).click();
+  await expect(page.getByRole('button', { name: /privacy-probe/ })).toHaveCount(0);
+  await page.getByRole('link', { name: /Start for real/ }).click();
+  await expect(page.getByRole('heading', { level: 1, name: /Manage S3-compatible storage/ })).toBeVisible();
   expect(offOrigin).toEqual([]); expect(await context.cookies()).toEqual([]);
-  expect(await page.evaluate(() => Object.keys(localStorage).filter(key => !key.startsWith('demo:')))).toEqual([]);
+  expect(await page.evaluate(() => ({
+    local: Object.keys(localStorage).filter(key => !key.startsWith('demo:')),
+    session: Object.keys(sessionStorage).filter(key => !key.startsWith('demo:'))
+  }))).toEqual({ local: [], session: [] });
+});
+
+test('@claim:cors-starter-rule publishes and preflights every request method the console can send', async ({ page }) => {
+  const preflightMethods: string[] = [];
+  const requestMethods: string[] = [];
+  const allowedMethods = S3_HTTP_METHODS.join(', ');
+  const server = createServer((request, response) => {
+    response.setHeader('Access-Control-Allow-Origin', request.headers.origin || '*');
+    response.setHeader('Access-Control-Allow-Methods', allowedMethods);
+    response.setHeader('Access-Control-Allow-Headers', request.headers['access-control-request-headers'] || '*');
+    response.setHeader('Access-Control-Max-Age', '0');
+    if (request.method === 'OPTIONS') {
+      preflightMethods.push(String(request.headers['access-control-request-method']));
+      response.writeHead(204).end();
+      return;
+    }
+    requestMethods.push(String(request.method));
+    const url = new URL(request.url || '/', 'http://127.0.0.1');
+    const reply = (): void => {
+      response.setHeader('Access-Control-Expose-Headers', 'ETag, Content-Length, Content-Type, Last-Modified');
+      if (request.method === 'GET' && url.pathname === '/') {
+        response.setHeader('Content-Type', 'application/xml');
+        response.end('<ListAllMyBucketsResult><Buckets><Bucket><Name>cors-bucket</Name></Bucket></Buckets></ListAllMyBucketsResult>');
+      } else if (request.method === 'GET' && url.searchParams.has('tagging')) {
+        response.setHeader('Content-Type', 'application/xml');
+        response.end('<Tagging><TagSet></TagSet></Tagging>');
+      } else if (request.method === 'GET') {
+        response.setHeader('Content-Type', 'application/xml');
+        response.end('<ListBucketResult><Contents><Key>seed.txt</Key><Size>5</Size><LastModified>2026-08-28T12:00:00Z</LastModified></Contents></ListBucketResult>');
+      } else if (request.method === 'HEAD') {
+        response.setHeader('Content-Type', 'text/plain');
+        response.setHeader('Content-Length', '5');
+        response.setHeader('ETag', 'seed-etag');
+        response.setHeader('Last-Modified', 'Fri, 28 Aug 2026 12:00:00 GMT');
+        response.end();
+      } else if (request.method === 'POST' && url.searchParams.has('uploads')) {
+        response.setHeader('Content-Type', 'application/xml');
+        response.end('<InitiateMultipartUploadResult><UploadId>cors-upload</UploadId></InitiateMultipartUploadResult>');
+      } else if (request.method === 'PUT' && url.searchParams.has('partNumber')) {
+        response.setHeader('ETag', `cors-part-${url.searchParams.get('partNumber')}`);
+        response.writeHead(200).end();
+      } else if (request.method === 'POST' && url.searchParams.has('uploadId')) {
+        response.setHeader('Content-Type', 'application/xml');
+        response.end('<CompleteMultipartUploadResult/>');
+      } else {
+        response.writeHead(204).end();
+      }
+    };
+    if (request.method === 'PUT' || request.method === 'POST') {
+      request.resume();
+      request.on('end', reply);
+    } else reply();
+  });
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  const endpoint = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  try {
+    await page.goto('/');
+    await expect(page.locator('#cors-help')).toContainText('GET, PUT, POST, DELETE, and HEAD');
+    const published = JSON.parse(await page.locator('#cors-help pre').innerText()) as { AllowedMethods: string[] };
+    expect(published.AllowedMethods).toEqual([...S3_HTTP_METHODS]);
+    await page.getByLabel('Storage endpoint URL').fill(endpoint);
+    await page.getByLabel('Access key ID').fill('CORS-PROBE');
+    await page.getByLabel('Secret access key').fill('cors-probe-secret');
+    await page.getByRole('button', { name: 'Test and connect' }).click();
+    await page.getByRole('button', { name: 'cors-bucket' }).click();
+    await page.locator('button[data-object="seed.txt"]').click();
+    await expect(page.getByRole('dialog').getByRole('heading', { name: 'seed.txt' })).toBeVisible();
+    await page.getByRole('dialog').getByRole('button', { name: 'Close' }).click();
+    await page.locator('#file-input').setInputFiles({ name: 'cors-large.bin', mimeType: 'application/octet-stream', buffer: Buffer.alloc(8 * 1024 * 1024 + 1, 3) });
+    await expect(page.getByText('1 object uploaded.')).toBeVisible();
+    page.once('dialog', dialog => dialog.accept());
+    await page.getByRole('button', { name: 'Delete seed.txt' }).click();
+    await expect.poll(() => [...new Set(preflightMethods)].sort()).toEqual([...S3_HTTP_METHODS].sort());
+    expect([...new Set(requestMethods)].sort()).toEqual([...S3_HTTP_METHODS].sort());
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+  }
 });
 
 test('@claim:credential-storage keeps normal connections session-only unless opted in', async ({ page }) => {
