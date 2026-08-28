@@ -6,7 +6,7 @@ Audited 28 August 2026. Counts treat hyphenated terms as one word. No retained s
 | --- | ---: | --- |
 | Manage S3-compatible storage from your browser. | 6 | Pass |
 | For self-hosters and small ops teams that manage buckets across different storage providers. | 13 | Pass |
-| Try it with sample data. | 6 | Pass |
+| Try it with sample data. | 5 | Pass |
 | Opens a disposable storage workspace. | 5 | Pass |
 | Connect your object store. | 4 | Pass |
 | Open source. | 2 | Pass — covered by `open-source`. |
@@ -25,13 +25,13 @@ Audited 28 August 2026. Counts treat hyphenated terms as one word. No retained s
 | This console sends GET, PUT, POST, DELETE, and HEAD requests. | 10 | Pass — covered by `cors-starter-rule`. |
 | Expose the `ETag` response header so large uploads can finish. | 10 | Pass — covered by `multipart-upload`. |
 | The console does not manage users, replication, monitoring, or provider-specific settings. | 11 | Pass |
-| The console has no account system, analytics, cookies, or tracking. | 10 | Pass |
+| The console does not set cookies or make analytics or tracking requests. | 12 | Pass — covered by `privacy-boundary`. |
 | Connection details use session storage by default. | 7 | Pass |
 | Selecting “Remember on this device” uses local storage until you disconnect. | 11 | Pass |
 | Your browser sends signed requests to the object store you configure. | 10 | Pass |
 | The demo sends no object-store requests. | 6 | Pass |
-| The service worker caches public console files. | 7 | Pass |
-| It does not cache storage responses, bucket names, objects, or credentials. | 11 | Pass |
+| The service worker caches public console files. | 7 | Pass — covered by `offline-cache-boundary`. |
+| It does not cache storage responses, bucket names, objects, or credentials. | 11 | Pass — covered by `offline-cache-boundary`. |
 | Manage S3-compatible storage from your browser. | 6 | Pass |
 
 ## README sentences changed in polish 3

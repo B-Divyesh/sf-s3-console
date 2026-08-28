@@ -2,6 +2,7 @@ import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { once } from 'node:events';
 import { expect, test, type Page } from 'playwright/test';
+import { DemoClient } from '../src/demo';
 import { S3_HTTP_METHODS } from '../src/s3';
 
 async function openDemo(page: Page): Promise<void> {
@@ -116,6 +117,10 @@ test('@claim:object-move copies a sample object before removing its source', asy
   await expect(page.locator('button[data-object$="usage-guide.txt"]')).toHaveCount(0);
   await page.getByRole('button', { name: /nightly-backups/ }).click();
   await expect(page.locator('button[data-object="migrated-guide.txt"]')).toBeVisible();
+
+  const isolated = new DemoClient();
+  await expect(isolated.moveObject('media-archive', 'brand/usage-guide.txt', 'missing-bucket', 'guide.txt')).rejects.toThrow('was not found');
+  await expect(isolated.download('media-archive', 'brand/usage-guide.txt')).resolves.toBeInstanceOf(Blob);
 });
 
 test('@claim:metadata-edit saves and reloads object metadata', async ({ page }) => {
@@ -209,6 +214,41 @@ test('@claim:privacy-boundary keeps a full demo flow out of normal browser stora
   }))).toEqual({ local: [], session: [] });
 });
 
+test('@claim:offline-cache-boundary caches only public same-origin console files', async ({ page }) => {
+  const secret = 'never-cache-this-secret';
+  await page.route('https://cache-store.example.test/**', route => {
+    const url = new URL(route.request().url());
+    const body = url.pathname === '/'
+      ? '<ListAllMyBucketsResult><Buckets><Bucket><Name>private-bucket</Name></Bucket></Buckets></ListAllMyBucketsResult>'
+      : '<ListBucketResult><Contents><Key>private-object.txt</Key><Size>12</Size></Contents></ListBucketResult>';
+    return route.fulfill({ contentType: 'application/xml', body });
+  });
+  await page.goto('/');
+  await page.evaluate(() => navigator.serviceWorker.ready);
+  await page.getByLabel('Storage endpoint URL').fill('https://cache-store.example.test');
+  await page.getByLabel('Access key ID').fill('CACHE-ACCESS');
+  await page.getByLabel('Secret access key').fill(secret);
+  await page.getByRole('button', { name: 'Test and connect' }).click();
+  await page.getByRole('button', { name: 'private-bucket' }).click();
+  await expect(page.getByText('private-object.txt', { exact: true })).toBeVisible();
+  const cacheSnapshot = await page.evaluate(async () => {
+    const entries: Array<{ url: string; body: string }> = [];
+    for (const name of await caches.keys()) {
+      const cache = await caches.open(name);
+      for (const request of await cache.keys()) {
+        const response = await cache.match(request);
+        entries.push({ url: request.url, body: response ? await response.clone().text() : '' });
+      }
+    }
+    return entries;
+  });
+  expect(cacheSnapshot.length).toBeGreaterThan(0);
+  expect(cacheSnapshot.every(entry => new URL(entry.url).origin === 'http://127.0.0.1:4173')).toBeTruthy();
+  expect(JSON.stringify(cacheSnapshot)).not.toContain('private-bucket');
+  expect(JSON.stringify(cacheSnapshot)).not.toContain('private-object.txt');
+  expect(JSON.stringify(cacheSnapshot)).not.toContain(secret);
+});
+
 test('@claim:cors-starter-rule publishes and preflights every request method the console can send', async ({ page }) => {
   const preflightMethods: string[] = [];
   const requestMethods: string[] = [];
@@ -292,6 +332,14 @@ test('@claim:credential-storage keeps normal connections session-only unless opt
   await page.goto('/'); await page.getByLabel('Storage endpoint URL').fill('https://storage.example.test'); await page.getByLabel('Access key ID').fill('TEST'); await page.getByLabel('Secret access key').fill('secret');
   await page.getByRole('button', { name: 'Test and connect' }).click();
   expect(await page.evaluate(() => ({ local: localStorage.getItem('s3-connection'), session: sessionStorage.getItem('s3-connection') }))).toMatchObject({ local: null, session: expect.stringContaining('storage.example.test') });
+  page.once('dialog', dialog => dialog.accept());
+  await page.getByRole('button', { name: 'Disconnect' }).click();
+  await page.getByLabel('Storage endpoint URL').fill('https://storage.example.test');
+  await page.getByLabel('Access key ID').fill('TEST');
+  await page.getByLabel('Secret access key').fill('secret');
+  await page.getByLabel('Remember on this device').check();
+  await page.getByRole('button', { name: 'Test and connect' }).click();
+  expect(await page.evaluate(() => ({ local: localStorage.getItem('s3-connection'), session: sessionStorage.getItem('s3-connection') }))).toMatchObject({ local: expect.stringContaining('storage.example.test'), session: null });
 });
 
 test('@claim:credential-disconnect removes both connection stores', async ({ page }) => {

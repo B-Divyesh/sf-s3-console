@@ -1,32 +1,50 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from 'playwright/test';
 
-test('first screen states the job, audience, action, and facts', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 }); await page.goto('/');
-  await expect(page.getByRole('heading', { level: 1, name: /Manage S3-compatible storage/ })).toBeVisible();
-  await expect(page.getByText(/self-hosters and small ops teams/)).toBeVisible();
-  const action = page.getByRole('link', { name: 'Try it with sample data' }); await expect(action).toBeVisible();
-  expect((await action.boundingBox())!.y + (await action.boundingBox())!.height).toBeLessThan(844);
-  await expect(page.getByText('Opens a disposable storage workspace.')).toBeVisible();
-  for (const fact of ['Open source', 'Your secret key is not sent in storage requests', 'Your endpoint must allow browser requests']) {
-    await expect(page.getByText(fact)).toBeVisible();
+test('first screen states the job, audience, action, and facts on phone and desktop', async ({ page }) => {
+  for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 }]) {
+    await page.setViewportSize(viewport); await page.goto('/');
+    await expect(page.getByRole('heading', { level: 1, name: /Manage S3-compatible storage/ })).toBeVisible();
+    await expect(page.getByText(/self-hosters and small ops teams/)).toBeVisible();
+    const action = page.getByRole('link', { name: 'Try it with sample data' }); await expect(action).toBeVisible();
+    expect((await action.boundingBox())!.y + (await action.boundingBox())!.height).toBeLessThan(viewport.height);
+    await expect(page.getByText('Opens a disposable storage workspace.')).toBeVisible();
+    for (const fact of ['Open source', 'Your secret key is not sent in storage requests', 'Your endpoint must allow browser requests']) {
+      await expect(page.getByText(fact)).toBeVisible();
+    }
   }
 });
 
 test('routes update title, metadata, focus, history, and 404 state', async ({ page }) => {
-  await page.goto('/'); await page.getByRole('link', { name: 'Privacy' }).first().click();
+  await page.goto('/'); await page.evaluate(() => scrollTo(0, document.body.scrollHeight));
+  await page.getByRole('contentinfo').getByRole('link', { name: 'Privacy' }).click();
   await expect(page).toHaveTitle('Privacy — S3 Console'); await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', /\/privacy$/);
   await expect(page.locator(':focus')).toHaveText('How your storage data is handled');
+  await expect(page.locator('#route-status')).toHaveText('How your storage data is handled');
+  await expect.poll(() => page.evaluate(() => scrollY)).toBe(0);
   await page.goBack(); await expect(page).toHaveTitle('S3 Console — manage S3-compatible storage'); await expect(page.locator(':focus')).toHaveText(/Manage S3-compatible storage/);
+  await expect(page.locator('#route-status')).toContainText('Manage S3-compatible storage');
   await page.goto('/missing-aisle'); await expect(page).toHaveTitle('Page not found — S3 Console'); await expect(page.getByRole('heading', { level: 1 })).toHaveText('This storage aisle does not exist');
 });
 
 test('every route keeps the shared navigation, footer, and route metadata', async ({ page }) => {
-  for (const [path, title] of [['/', 'S3 Console — manage S3-compatible storage'], ['/demo', 'Demo — S3 Console'], ['/privacy', 'Privacy — S3 Console'], ['/terms', 'Terms — S3 Console'], ['/missing-aisle', 'Page not found — S3 Console']]) {
+  for (const [path, title, canonical] of [['/', 'S3 Console — manage S3-compatible storage', '/'], ['/demo', 'Demo — S3 Console', '/demo'], ['/?demo=1', 'Demo — S3 Console', '/demo'], ['/privacy', 'Privacy — S3 Console', '/privacy'], ['/terms', 'Terms — S3 Console', '/terms'], ['/missing-aisle', 'Page not found — S3 Console', '/404']]) {
     await page.goto(path);
     await expect(page).toHaveTitle(title);
+    expect(title.length).toBeLessThanOrEqual(60);
     await expect(page.locator('meta[name="description"]')).toHaveAttribute('content', /.+/);
-    await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', /.+/);
+    expect((await page.locator('meta[name="description"]').getAttribute('content'))!.length).toBeLessThanOrEqual(155);
+    await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', `https://s3-console.sociobot.in${canonical}`);
+    await expect(page.locator('meta[property="og:title"]')).toHaveAttribute('content', title);
+    await expect(page.locator('meta[property="og:description"]')).toHaveAttribute('content', /.+/);
+    await expect(page.locator('meta[property="og:url"]')).toHaveAttribute('content', `https://s3-console.sociobot.in${canonical}`);
+    await expect(page.locator('meta[property="og:image"]')).toHaveAttribute('content', /\/assets\/social-preview\.png$/);
+    await expect(page.locator('meta[name="twitter:card"]')).toHaveAttribute('content', 'summary_large_image');
+    await expect(page.locator('meta[name="twitter:title"]')).toHaveAttribute('content', title);
+    await expect(page.locator('link[rel="apple-touch-icon"]')).toHaveAttribute('href', '/apple-touch-icon.png');
+    await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+    await expect(page.locator('main')).toHaveCount(1);
+    await expect(page.locator('h1')).toHaveCount(1);
     await expect(page.getByRole('link', { name: 'Home' }).first()).toBeVisible();
     await expect(page.getByRole('link', { name: 'Demo' }).first()).toBeVisible();
     await expect(page.getByRole('link', { name: 'Privacy' }).first()).toBeVisible();

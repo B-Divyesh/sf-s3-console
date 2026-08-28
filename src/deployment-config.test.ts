@@ -32,9 +32,13 @@ describe('host-served static 404 contract', () => {
     expect(config.responseOverrides['404']).toEqual({ rewrite: '/404.html', statusCode: 404 });
     expect(config.navigationFallback.exclude.some(item => item.includes('/assets/'))).toBe(true);
     for (const required of [
-      '<meta name="robots" content="noindex">', '<meta name="description"', '<link rel="canonical"',
+      '<html lang="en">', '<meta name="robots" content="noindex">', '<meta name="description"', '<link rel="canonical"',
       '<meta property="og:title"', '<meta name="twitter:card"', '<link rel="apple-touch-icon"',
       '<nav aria-label="Main navigation">', 'Built by Param Factory', 'Build v1.0.0 · polish-3'
     ]) expect(page).toContain(required);
+    expect(page.match(/<main\b/g)).toHaveLength(1);
+    expect(page.match(/<h1\b/g)).toHaveLength(1);
+    expect(page).toContain('<a href="/privacy">Privacy</a>');
+    expect(page).toContain('<a href="/terms">Terms</a>');
   });
 });

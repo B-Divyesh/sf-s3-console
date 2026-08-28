@@ -4,8 +4,8 @@ import { S3Client } from './s3';
 const endpoint = process.env.MINIO_ENDPOINT;
 const runMinio = endpoint ? describe : describe.skip;
 
-runMinio('MinIO RELEASE.2025-09-07 versioned bucket deletion', () => {
-  it('removes old versions and delete markers before deleting the bucket', async () => {
+runMinio('MinIO RELEASE.2025-09-07 direct-client integration', () => {
+  it('round-trips a multipart upload and removes all versions before deleting the bucket', async () => {
     const client = new S3Client({
       endpoint: endpoint!, region: process.env.MINIO_REGION || 'us-east-1',
       accessKey: process.env.MINIO_ACCESS_KEY || 'minioadmin', secretKey: process.env.MINIO_SECRET_KEY || 'minioadmin', pathStyle: true
@@ -18,9 +18,17 @@ runMinio('MinIO RELEASE.2025-09-07 versioned bucket deletion', () => {
       await client.upload(bucket, 'history.txt', new File(['second version'], 'history.txt', { type: 'text/plain' }), () => undefined);
       await client.deleteObject(bucket, 'history.txt');
 
+      const multipartBytes = new Uint8Array(8 * 1024 * 1024 + 1).fill(7);
+      await client.upload(bucket, 'multipart.bin', new File([multipartBytes], 'multipart.bin', { type: 'application/octet-stream' }), () => undefined);
+      const downloaded = new Uint8Array(await (await client.download(bucket, 'multipart.bin')).arrayBuffer());
+      expect(downloaded).toHaveLength(multipartBytes.length);
+      expect(downloaded[0]).toBe(7);
+      expect(downloaded.at(-1)).toBe(7);
+
       const before = await client.listObjectVersions(bucket);
       expect(before.versions.some(version => version.deleteMarker)).toBe(true);
-      expect(before.versions.filter(version => !version.deleteMarker)).toHaveLength(2);
+      expect(before.versions.filter(version => version.key === 'history.txt' && !version.deleteMarker)).toHaveLength(2);
+      expect(before.versions.some(version => version.key === 'multipart.bin' && !version.deleteMarker)).toBe(true);
       await client.deleteBucketWithVersions(bucket);
     } finally {
       // The successful path has already removed the bucket. Leave a failed test

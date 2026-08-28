@@ -250,7 +250,9 @@ export class S3Client {
       onProgress(1); return;
     }
     const init = await (await this.signedFetch('POST', bucket, key, { uploads: '' }, '', { 'content-type': file.type || 'application/octet-stream' })).text();
-    const uploadId = xmlText(new DOMParser().parseFromString(init, 'application/xml'), 'UploadId');
+    const uploadId = typeof DOMParser !== 'undefined'
+      ? xmlText(new DOMParser().parseFromString(init, 'application/xml'), 'UploadId')
+      : xmlTextFromString(init, 'UploadId');
     if (!uploadId) throw new Error('The store did not return a multipart upload ID.');
     const parts: Array<{ number: number; etag: string }> = [];
     try {

@@ -92,7 +92,7 @@ function legalPage(kind: 'privacy' | 'terms'): void {
   setMetadata(title, privacy ? 'How S3 Console handles credentials, requests, and browser storage.' : 'Terms for using the S3 Console browser application.', `/${kind}`);
   app.innerHTML = `${header()}<main id="main" class="legal-page"><p class="eyebrow">${privacy ? 'Browser data policy' : 'Plain-language agreement'}</p>
     <h1 tabindex="-1">${privacy ? 'How your storage data is handled' : 'Terms of use'}</h1>
-    ${privacy ? `<p class="lede">The console has no account system, analytics, cookies, or tracking.</p>
+    ${privacy ? `<p class="lede">The console does not set cookies or make analytics or tracking requests.</p>
       <h2>What stays in your browser</h2><p>Connection details use session storage by default. Selecting “Remember on this device” uses local storage until you disconnect.</p>
       <h2>What leaves your browser</h2><p>Your browser sends signed requests to the object store you configure. The demo sends no object-store requests.</p>
       <h2>Offline cache</h2><p>The service worker caches public console files. It does not cache storage responses, bucket names, objects, or credentials.</p>` :
