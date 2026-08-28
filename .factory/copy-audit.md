@@ -9,7 +9,7 @@ Audited 28 August 2026. Counts treat hyphenated terms as one word. No retained s
 | Try it with sample data. | 6 | Pass |
 | Opens a disposable storage workspace. | 5 | Pass |
 | Connect your object store. | 4 | Pass |
-| Free and open source. | 5 | Pass |
+| Open source. | 2 | Pass — covered by `open-source`. |
 | Credentials stay in your browser. | 5 | Pass |
 | Your endpoint must allow browser requests. | 6 | Pass |
 | Your credentials go only to your chosen storage endpoint. | 9 | Pass |
@@ -20,6 +20,7 @@ Audited 28 August 2026. Counts treat hyphenated terms as one word. No retained s
 | Enter one storage endpoint and access key. | 7 | Pass |
 | Open buckets and inspect object details. | 6 | Pass |
 | Upload files or edit supported bucket settings. | 7 | Pass |
+| Copy objects or move them after a successful copy. | 9 | Pass — covered by object-copy/object-move. |
 | Add this site to the object store's browser-access rules. | 9 | Pass |
 | Allow the five listed methods. | 5 | Pass |
 | Expose ETag for large uploads. | 5 | Pass |

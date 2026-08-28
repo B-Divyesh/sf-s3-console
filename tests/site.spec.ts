@@ -8,7 +8,7 @@ test('first screen states the job, audience, action, and facts', async ({ page }
   const action = page.getByRole('link', { name: 'Try it with sample data' }); await expect(action).toBeVisible();
   expect((await action.boundingBox())!.y + (await action.boundingBox())!.height).toBeLessThan(844);
   await expect(page.getByText('Opens a disposable storage workspace.')).toBeVisible();
-  for (const fact of ['Free and open source', 'Credentials stay in your browser', 'Your endpoint must allow browser requests']) {
+  for (const fact of ['Open source', 'Credentials stay in your browser', 'Your endpoint must allow browser requests']) {
     await expect(page.getByText(fact)).toBeVisible();
   }
 });
@@ -30,7 +30,7 @@ test('every route keeps the shared navigation, footer, and route metadata', asyn
     await expect(page.getByRole('link', { name: 'Home' }).first()).toBeVisible();
     await expect(page.getByRole('link', { name: 'Demo' }).first()).toBeVisible();
     await expect(page.getByRole('link', { name: 'Privacy' }).first()).toBeVisible();
-    await expect(page.getByRole('contentinfo').getByText(/v1\.0\.0 · polish-1/)).toBeVisible();
+    await expect(page.getByRole('contentinfo').getByText(/v1\.0\.0 · polish-2/)).toBeVisible();
     await expect(page.getByRole('contentinfo').getByRole('link', { name: 'Terms' })).toBeVisible();
   }
 });

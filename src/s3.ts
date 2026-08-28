@@ -269,6 +269,20 @@ export class S3Client {
   async download(bucket: string, key: string): Promise<Blob> { return (await this.signedFetch('GET', bucket, key)).blob(); }
   async deleteObject(bucket: string, key: string): Promise<void> { await this.signedFetch('DELETE', bucket, key); }
 
+  async copyObject(sourceBucket: string, sourceKey: string, destinationBucket: string, destinationKey: string): Promise<void> {
+    if (sourceBucket === destinationBucket && sourceKey === destinationKey) throw new Error('Choose a different destination object.');
+    const source = `/${awsEncode(sourceBucket)}/${sourceKey.split('/').map(awsEncode).join('/')}`;
+    await this.signedFetch('PUT', destinationBucket, destinationKey, {}, '', {
+      'x-amz-copy-source': source, 'x-amz-metadata-directive': 'COPY', 'x-amz-tagging-directive': 'COPY'
+    });
+  }
+
+  /** A source is deleted only after S3 acknowledges the destination copy. */
+  async moveObject(sourceBucket: string, sourceKey: string, destinationBucket: string, destinationKey: string): Promise<void> {
+    await this.copyObject(sourceBucket, sourceKey, destinationBucket, destinationKey);
+    await this.deleteObject(sourceBucket, sourceKey);
+  }
+
   async headObject(bucket: string, key: string): Promise<Record<string, string>> {
     const headers = (await this.signedFetch('HEAD', bucket, key)).headers;
     return Object.fromEntries([...headers.entries()].filter(([name]) => name.startsWith('x-amz-meta-') || ['content-type', 'content-length', 'etag', 'last-modified'].includes(name)));

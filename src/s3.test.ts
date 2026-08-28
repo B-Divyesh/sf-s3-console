@@ -109,3 +109,43 @@ describe('version-aware bucket deletion', () => {
     expect(calls[1].options?.method).toBe('POST');
   });
 });
+
+describe('object transfers', () => {
+  const connection = { endpoint: 'https://storage.example.test', region: 'us-east-1', accessKey: 'ACCESS', secretKey: 'secret', pathStyle: true };
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('copies with S3 CopyObject and preserves the source', async () => {
+    const calls: Array<{ url: URL; options?: RequestInit }> = [];
+    vi.stubGlobal('fetch', (url: RequestInfo | URL, options?: RequestInit) => {
+      calls.push({ url: new URL(String(url)), options }); return Promise.resolve(new Response('', { status: 200 }));
+    });
+    await new S3Client(connection).copyObject('source-bucket', 'reports/final file.txt', 'archive-bucket', '2026/final file.txt');
+    expect(calls).toHaveLength(1);
+    expect(calls[0].url.pathname).toBe('/archive-bucket/2026/final%20file.txt');
+    expect(new Headers(calls[0].options?.headers).get('x-amz-copy-source')).toBe('/source-bucket/reports/final%20file.txt');
+    expect(new Headers(calls[0].options?.headers).get('x-amz-metadata-directive')).toBe('COPY');
+    expect(new Headers(calls[0].options?.headers).get('x-amz-tagging-directive')).toBe('COPY');
+    expect(calls[0].options?.method).toBe('PUT');
+  });
+
+  it('never deletes the source when the copy fails', async () => {
+    const calls: Array<{ url: URL; options?: RequestInit }> = [];
+    vi.stubGlobal('fetch', (url: RequestInfo | URL, options?: RequestInit) => {
+      calls.push({ url: new URL(String(url)), options }); return Promise.resolve(new Response('<Error><Code>AccessDenied</Code><Message>write denied</Message></Error>', { status: 403 }));
+    });
+    await expect(new S3Client(connection).moveObject('source-bucket', 'keep.txt', 'archive-bucket', 'keep.txt')).rejects.toThrow('AccessDenied');
+    expect(calls).toHaveLength(1);
+    expect(calls[0].options?.method).toBe('PUT');
+  });
+
+  it('deletes the source only after the copy succeeds', async () => {
+    const calls: Array<{ url: URL; options?: RequestInit }> = [];
+    vi.stubGlobal('fetch', (url: RequestInfo | URL, options?: RequestInit) => {
+      calls.push({ url: new URL(String(url)), options }); return Promise.resolve(new Response('', { status: 200 }));
+    });
+    await new S3Client(connection).moveObject('source-bucket', 'move.txt', 'archive-bucket', 'moved.txt');
+    expect(calls.map(call => call.options?.method)).toEqual(['PUT', 'DELETE']);
+    expect(calls[1].url.pathname).toBe('/source-bucket/move.txt');
+  });
+});

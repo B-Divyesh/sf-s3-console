@@ -24,3 +24,17 @@ describe('static deployment cache policy', () => {
     expect(nginx).toContain(`Cache-Control "${revalidate}"`);
   });
 });
+
+describe('host-served static 404 contract', () => {
+  it('maps excluded missing assets to the complete noindex 404 document', () => {
+    const config = JSON.parse(readFileSync(resolve(root, 'public/staticwebapp.config.json'), 'utf8')) as { responseOverrides: Record<string, { rewrite: string; statusCode: number }>; navigationFallback: { exclude: string[] } };
+    const page = readFileSync(resolve(root, 'public/404.html'), 'utf8');
+    expect(config.responseOverrides['404']).toEqual({ rewrite: '/404.html', statusCode: 404 });
+    expect(config.navigationFallback.exclude.some(item => item.includes('/assets/'))).toBe(true);
+    for (const required of [
+      '<meta name="robots" content="noindex">', '<meta name="description"', '<link rel="canonical"',
+      '<meta property="og:title"', '<meta name="twitter:card"', '<link rel="apple-touch-icon"',
+      '<nav aria-label="Main navigation">', 'Built by Param Factory', 'Build v1.0.0 · polish-2'
+    ]) expect(page).toContain(required);
+  });
+});

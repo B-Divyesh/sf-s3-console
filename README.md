@@ -9,6 +9,7 @@ Manage S3-compatible storage from your browser. S3 Console is for self-hosters a
 - Creates and safely deletes buckets.
 - Browses object folders and filters names.
 - Uploads, downloads, and deletes objects.
+- Copies objects or moves them after a successful copy.
 - Edits object metadata and tags.
 - Edits policy, browser-access, and lifecycle rules.
 - Enables or suspends bucket versioning.
@@ -34,13 +35,14 @@ Read the live [privacy policy](https://s3-console.sociobot.in/privacy) and [term
 npm ci
 npm run lint
 npm test
+npm run test:clean
 npm run build
 npm run test:browser
 ```
 
 Run one declared product claim with its command in [`.factory/claims.json`](.factory/claims.json). The browser suite starts the production preview automatically.
 
-An optional integration command accepts a disposable MinIO endpoint:
+An optional integration command accepts a disposable MinIO endpoint. It exercises version-aware bucket cleanup and multipart uploads over the direct browser client:
 
 ```sh
 MINIO_ENDPOINT=http://127.0.0.1:9000 \

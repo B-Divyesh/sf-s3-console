@@ -84,6 +84,36 @@ test('@claim:object-delete deletes an object from the sample inventory', async (
   await expect(page.getByText('usage-guide.txt', { exact: true })).toHaveCount(0);
 });
 
+test('@claim:object-copy copies a sample object with metadata and tags', async ({ page }) => {
+  await openDemo(page); await page.getByRole('button', { name: /brand/ }).click();
+  await page.locator('button[data-object$="usage-guide.txt"]').click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Copy object' }).click();
+  const transfer = page.locator('dialog').last();
+  await transfer.getByLabel('Destination bucket').selectOption('static-site');
+  await transfer.getByLabel('Destination object key').fill('copied-guide.txt');
+  await transfer.getByRole('button', { name: 'Copy object' }).click();
+  await page.locator('.drawer [data-close]').click();
+  await page.getByRole('button', { name: /static-site/ }).click();
+  await page.locator('button[data-object="copied-guide.txt"]').click();
+  const copied = page.getByRole('dialog');
+  await expect(copied.getByLabel(/Metadata/)).toHaveValue('owner=sample-ops');
+  await expect(copied.getByLabel(/Tags/)).toHaveValue('team=design');
+});
+
+test('@claim:object-move copies a sample object before removing its source', async ({ page }) => {
+  await openDemo(page); await page.getByRole('button', { name: /brand/ }).click();
+  await page.locator('button[data-object$="usage-guide.txt"]').click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Move object' }).click();
+  const transfer = page.locator('dialog').last();
+  await transfer.getByLabel('Destination bucket').selectOption('nightly-backups');
+  await transfer.getByLabel('Destination object key').fill('migrated-guide.txt');
+  await transfer.getByRole('button', { name: 'Move object' }).click();
+  await page.locator('.drawer [data-close]').click();
+  await expect(page.locator('button[data-object$="usage-guide.txt"]')).toHaveCount(0);
+  await page.getByRole('button', { name: /nightly-backups/ }).click();
+  await expect(page.locator('button[data-object="migrated-guide.txt"]')).toBeVisible();
+});
+
 test('@claim:metadata-edit saves and reloads object metadata', async ({ page }) => {
   await openSampleObject(page);
   const dialog = page.getByRole('dialog');
@@ -203,4 +233,45 @@ test('@claim:theme-choice persists the selected theme in normal mode', async ({ 
 test('@claim:scope-boundary exposes no user, replication, monitoring, or provider account controls', async ({ page }) => {
   await openDemo(page);
   for (const name of [/manage users/i, /replication settings/i, /monitoring dashboard/i, /provider account/i]) await expect(page.getByRole('button', { name })).toHaveCount(0);
+});
+
+test('@claim:multipart-upload sends an 8 MiB-plus file through initiate, parts, and completion', async ({ page }) => {
+  const requests: Array<{ url: URL; method: string; bytes: number }> = [];
+  await page.route('https://multipart.example.test/**', async route => {
+    const request = route.request(); const url = new URL(request.url());
+    requests.push({ url, method: request.method(), bytes: request.postDataBuffer()?.length || 0 });
+    if (request.method() === 'GET' && url.pathname === '/') return route.fulfill({ contentType: 'application/xml', body: '<ListAllMyBucketsResult><Buckets><Bucket><Name>transfer-bucket</Name></Bucket></Buckets></ListAllMyBucketsResult>' });
+    if (request.method() === 'GET') return route.fulfill({ contentType: 'application/xml', body: '<ListBucketResult></ListBucketResult>' });
+    if (request.method() === 'POST' && url.searchParams.has('uploads')) return route.fulfill({ contentType: 'application/xml', body: '<InitiateMultipartUploadResult><UploadId>test-upload</UploadId></InitiateMultipartUploadResult>' });
+    if (request.method() === 'PUT' && url.searchParams.has('partNumber')) return route.fulfill({ status: 200, headers: { ETag: `part-${url.searchParams.get('partNumber')}`, 'Access-Control-Expose-Headers': 'ETag', 'Access-Control-Allow-Origin': '*' } });
+    if (request.method() === 'POST' && url.searchParams.has('uploadId')) return route.fulfill({ status: 200, contentType: 'application/xml', body: '<CompleteMultipartUploadResult/>' });
+    return route.fulfill({ status: 500, body: 'Unexpected S3 request' });
+  });
+  await page.goto('/');
+  await page.getByLabel('Storage endpoint URL').fill('https://multipart.example.test');
+  await page.getByLabel('Access key ID').fill('TEST'); await page.getByLabel('Secret access key').fill('secret');
+  await page.getByRole('button', { name: 'Test and connect' }).click();
+  await page.getByRole('button', { name: 'transfer-bucket' }).click();
+  const bytes = 8 * 1024 * 1024 + 1;
+  await page.locator('#file-input').setInputFiles({ name: 'archive.bin', mimeType: 'application/octet-stream', buffer: Buffer.alloc(bytes, 7) });
+  await expect(page.getByText('1 object uploaded.')).toBeVisible();
+  const initiated = requests.filter(item => item.method === 'POST' && item.url.searchParams.has('uploads'));
+  const parts = requests.filter(item => item.method === 'PUT' && item.url.searchParams.has('partNumber'));
+  const complete = requests.filter(item => item.method === 'POST' && item.url.searchParams.has('uploadId'));
+  expect(initiated).toHaveLength(1); expect(parts).toHaveLength(2); expect(parts[0].bytes + parts[1].bytes).toBe(bytes); expect(complete).toHaveLength(1);
+});
+
+test('@claim:path-style-default selects path-style URLs and places the bucket in the request path', async ({ page }) => {
+  const requestPaths: string[] = [];
+  await page.route('https://path-style.example.test/**', route => {
+    requestPaths.push(new URL(route.request().url()).pathname);
+    return route.fulfill({ contentType: 'application/xml', body: route.request().method() === 'GET' && new URL(route.request().url()).pathname === '/' ? '<ListAllMyBucketsResult><Buckets><Bucket><Name>path-bucket</Name></Bucket></Buckets></ListAllMyBucketsResult>' : '<ListBucketResult></ListBucketResult>' });
+  });
+  await page.goto('/');
+  await expect(page.getByLabel('URL format')).toHaveValue('true');
+  await page.getByLabel('Storage endpoint URL').fill('https://path-style.example.test');
+  await page.getByLabel('Access key ID').fill('TEST'); await page.getByLabel('Secret access key').fill('secret');
+  await page.getByRole('button', { name: 'Test and connect' }).click();
+  await page.getByRole('button', { name: 'path-bucket' }).click();
+  await expect.poll(() => requestPaths).toContain('/path-bucket');
 });

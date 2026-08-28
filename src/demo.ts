@@ -8,6 +8,8 @@ export interface ConsoleClient {
   upload(bucket: string, key: string, file: File, onProgress: (fraction: number) => void): Promise<void>;
   download(bucket: string, key: string): Promise<Blob>;
   deleteObject(bucket: string, key: string): Promise<void>;
+  copyObject(sourceBucket: string, sourceKey: string, destinationBucket: string, destinationKey: string): Promise<void>;
+  moveObject(sourceBucket: string, sourceKey: string, destinationBucket: string, destinationKey: string): Promise<void>;
   headObject(bucket: string, key: string): Promise<Record<string, string>>;
   replaceMetadata(bucket: string, key: string, metadata: Record<string, string>, contentType: string): Promise<void>;
   getTags(bucket: string, key: string): Promise<Record<string, string>>;
@@ -91,6 +93,19 @@ export class DemoClient implements ConsoleClient {
   }
   async download(bucket: string, key: string): Promise<Blob> { return this.needObject(bucket, key).body.slice(); }
   async deleteObject(bucket: string, key: string): Promise<void> { this.needBucket(bucket).objects.delete(key); }
+  async copyObject(sourceBucket: string, sourceKey: string, destinationBucket: string, destinationKey: string): Promise<void> {
+    if (sourceBucket === destinationBucket && sourceKey === destinationKey) throw new Error('Choose a different destination object.');
+    const source = this.needObject(sourceBucket, sourceKey);
+    const copy: DemoObject = {
+      ...source, key: destinationKey, body: source.body.slice(), modified: new Date().toISOString(),
+      metadata: { ...source.metadata }, tags: { ...source.tags }
+    };
+    this.needBucket(destinationBucket).objects.set(destinationKey, copy);
+  }
+  async moveObject(sourceBucket: string, sourceKey: string, destinationBucket: string, destinationKey: string): Promise<void> {
+    await this.copyObject(sourceBucket, sourceKey, destinationBucket, destinationKey);
+    await this.deleteObject(sourceBucket, sourceKey);
+  }
   async headObject(bucket: string, key: string): Promise<Record<string, string>> {
     const item = this.needObject(bucket, key); return { 'content-length': String(item.size), 'content-type': item.contentType, 'last-modified': item.modified || date, etag: item.etag || '', ...Object.fromEntries(Object.entries(item.metadata).map(([name, value]) => [`x-amz-meta-${name}`, value])) };
   }

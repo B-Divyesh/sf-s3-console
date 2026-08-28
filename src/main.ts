@@ -10,7 +10,7 @@ type AppState = {
 
 const app = document.querySelector<HTMLDivElement>('#app')!;
 const state: AppState = { buckets: [], objects: [], prefixes: [], prefix: '', loading: false, filter: '', demo: false };
-const buildId = 'v1.0.0 · polish-1';
+const buildId = 'v1.0.0 · polish-2';
 const siteUrl = 'https://s3-console.sociobot.in';
 
 const icons: Record<string, string> = {
@@ -131,7 +131,7 @@ function renderConnect(): void {
       <section class="hero-copy"><p class="eyebrow">Portable object-store console // v1.0</p><h1 tabindex="-1">Manage S3-compatible storage <em>from your browser</em></h1>
         <p class="hero-lede">For self-hosters and small ops teams that manage buckets across different storage providers.</p>
         <div class="hero-actions"><a class="button primary" href="/demo">Try it with sample data</a><span>Opens a disposable storage workspace.</span><a class="button" href="#connect-title">Connect your object store</a></div>
-        <ul class="plain-facts"><li>Free and open source</li><li>Credentials stay in your browser</li><li>Your endpoint must allow browser requests</li></ul>
+        <ul class="plain-facts"><li>Open source</li><li>Credentials stay in your browser</li><li>Your endpoint must allow browser requests</li></ul>
       </section>
       <section class="connection-zone" aria-labelledby="connect-title">
         <picture class="hero-art"><source media="(max-width: 600px)" srcset="/assets/storage-workbench-mobile.webp"><img src="/assets/storage-workbench.webp" width="960" height="640" alt="Four different industrial storage crates linked to one terminal by orange cables" fetchpriority="high" decoding="async"></picture>
@@ -315,10 +315,30 @@ async function objectDialog(key: string): Promise<void> {
     const metadata = Object.fromEntries(Object.entries(headers).filter(([name]) => name.startsWith('x-amz-meta-')).map(([name, value]) => [name.slice(11), value]));
     dialog.querySelector('.inspector')!.innerHTML = `<div class="dialog-head"><div><p class="eyebrow">Object inspector</p><h2>${escapeHtml(key.split('/').pop())}</h2></div><button class="icon-button" type="button" data-close aria-label="Close">${icons.close}</button></div><p class="code-path">s3://${escapeHtml(state.bucket)}/${escapeHtml(key)}</p>
       <dl class="object-facts"><div><dt>Size</dt><dd>${formatBytes(Number(headers['content-length']))}</dd></div><div><dt>Modified</dt><dd>${formatDate(headers['last-modified'])}</dd></div><div><dt>Content type</dt><dd>${escapeHtml(headers['content-type'] || 'application/octet-stream')}</dd></div><div><dt>ETag</dt><dd>${escapeHtml(headers.etag || '—')}</dd></div></dl>
-      <form id="object-detail-form"><label>Metadata <small>One key=value pair per line</small><textarea name="metadata" rows="6">${escapeHtml(Object.entries(metadata).map(([a,b]) => `${a}=${b}`).join('\n'))}</textarea></label><label>Tags <small>One key=value pair per line</small><textarea name="tags" rows="6">${escapeHtml(Object.entries(tags).map(([a,b]) => `${a}=${b}`).join('\n'))}</textarea></label><div class="dialog-actions spread"><button type="button" class="button" id="inspect-download">↓ Download</button><button type="submit" class="button primary">Save details</button></div></form>`;
+      <form id="object-detail-form"><label>Metadata <small>One key=value pair per line</small><textarea name="metadata" rows="6">${escapeHtml(Object.entries(metadata).map(([a,b]) => `${a}=${b}`).join('\n'))}</textarea></label><label>Tags <small>One key=value pair per line</small><textarea name="tags" rows="6">${escapeHtml(Object.entries(tags).map(([a,b]) => `${a}=${b}`).join('\n'))}</textarea></label><div class="dialog-actions transfer-actions"><button type="button" class="button" id="inspect-download">↓ Download</button><button type="button" class="button" id="copy-object">Copy object</button><button type="button" class="button" id="move-object">Move object</button><button type="submit" class="button primary">Save details</button></div></form>`;
     dialog.querySelector('[data-close]')?.addEventListener('click', () => dialog.close()); dialog.querySelector('#inspect-download')?.addEventListener('click', () => void downloadObject(key));
+    dialog.querySelector('#copy-object')?.addEventListener('click', () => transferDialog(key, 'copy'));
+    dialog.querySelector('#move-object')?.addEventListener('click', () => transferDialog(key, 'move'));
     dialog.querySelector('form')?.addEventListener('submit', async event => { event.preventDefault(); const form = event.currentTarget as HTMLFormElement; const data = new FormData(form); const parsePairs = (value: FormDataEntryValue | null) => Object.fromEntries(String(value || '').split('\n').map(line => line.trim()).filter(Boolean).map(line => { const at = line.indexOf('='); return at < 1 ? [line, ''] : [line.slice(0, at).trim(), line.slice(at + 1).trim()]; })); const button = form.querySelector<HTMLButtonElement>('[type="submit"]')!; setBusy(button, true); try { await Promise.all([state.client!.replaceMetadata(state.bucket!, key, parsePairs(data.get('metadata')), headers['content-type'] || 'application/octet-stream'), state.client!.putTags(state.bucket!, key, parsePairs(data.get('tags')))]); notice('Object details saved.', 'success'); dialog.close(); } catch (error) { notice(error instanceof Error ? error.message : 'Could not save details', 'error'); setBusy(button, false); } });
   } catch (error) { dialog.close(); notice(error instanceof Error ? error.message : 'Could not inspect object', 'error'); }
+}
+
+function transferDialog(sourceKey: string, mode: 'copy' | 'move'): void {
+  const sourceBucket = state.bucket!;
+  const suggestedKey = `${state.prefix}copy-${sourceKey.split('/').pop() || 'object'}`;
+  const verb = mode === 'copy' ? 'Copy' : 'Move';
+  const dialog = openDialog(`<form class="dialog-card" id="transfer-form"><div class="dialog-head"><div><p class="eyebrow">Object transfer</p><h2>${verb} object</h2></div><button class="icon-button" type="button" data-close aria-label="Close">${icons.close}</button></div><p class="code-path">From s3://${escapeHtml(sourceBucket)}/${escapeHtml(sourceKey)}</p><label>Destination bucket<select name="bucket">${state.buckets.map(bucket => `<option value="${escapeHtml(bucket.name)}" ${bucket.name === sourceBucket ? 'selected' : ''}>${escapeHtml(bucket.name)}</option>`).join('')}</select></label><label>Destination object key<input name="key" required value="${escapeHtml(suggestedKey)}" autocomplete="off"></label><p class="transfer-note">${mode === 'copy' ? 'The source object stays in place. Metadata and tags are preserved.' : 'The console deletes the source only after the destination copy succeeds.'}</p><div class="dialog-actions"><button class="button" type="button" data-close>Cancel</button><button class="button primary" type="submit">${verb} object</button></div></form>`);
+  const form = dialog.querySelector<HTMLFormElement>('form')!;
+  form.addEventListener('submit', async event => {
+    event.preventDefault(); const data = new FormData(form); const destinationBucket = String(data.get('bucket')); const destinationKey = String(data.get('key')).trim();
+    if (!destinationKey) return;
+    const button = form.querySelector<HTMLButtonElement>('[type="submit"]')!; setBusy(button, true, `${verb}ing object…`);
+    try {
+      if (mode === 'copy') await state.client!.copyObject(sourceBucket, sourceKey, destinationBucket, destinationKey);
+      else await state.client!.moveObject(sourceBucket, sourceKey, destinationBucket, destinationKey);
+      dialog.close(); await loadObjects(); notice(`${verb} complete: “${destinationKey}”.`, 'success');
+    } catch (error) { notice(error instanceof Error ? error.message : `${verb} failed`, 'error'); setBusy(button, false); }
+  });
 }
 
 function bucketSettingsDialog(): void {
