@@ -32,6 +32,7 @@ Read the live [privacy policy](https://s3-console.sociobot.in/privacy) and [term
 
 ```sh
 npm ci
+npm run lint
 npm test
 npm run build
 npm run test:browser

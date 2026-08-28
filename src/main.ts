@@ -13,7 +13,7 @@ type AppState = {
 
 const app = document.querySelector<HTMLDivElement>('#app')!;
 const state: AppState = { buckets: [], objects: [], prefixes: [], prefix: '', loading: false, filter: '', demo: false };
-const buildId = 'e9e66e3-r1';
+const buildId = 'v1.0.0 · polish-1';
 const siteUrl = 'https://s3-console.sociobot.in';
 
 const icons: Record<string, string> = {

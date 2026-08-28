@@ -110,7 +110,7 @@ function deleteResultError(xml: string): string | undefined {
 }
 
 function escapeXml(value: string): string {
-  return value.replace(/[<>&'\"]/g, char => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' })[char]!);
+  return value.replace(/[<>&'"]/g, char => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' })[char]!);
 }
 
 async function checksumHeaders(body: string, contentType = 'application/xml'): Promise<Record<string, string>> {
