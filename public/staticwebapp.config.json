@@ -25,11 +25,6 @@
     {
       "route": "/manifest.webmanifest",
       "headers": { "cache-control": "no-cache, max-age=0, must-revalidate" }
-    },
-    {
-      "route": "/404",
-      "rewrite": "/404.html",
-      "statusCode": 404
     }
   ],
   "mimeTypes": { ".webmanifest": "application/manifest+json" }
