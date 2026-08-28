@@ -1,5 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { S3Client, awsEncode, canonicalQuery, parseObjectVersions } from './s3';
+import { S3Client, awsEncode, canonicalQuery, endpointDiagnostic, parseObjectVersions } from './s3';
+
+it('@claim:connection-diagnostics blocks mixed content and explains browser-access failures', async () => {
+  expect(endpointDiagnostic('http://storage.example.test', 'https:')).toContain('Browsers block HTTP');
+  vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')));
+  const client = new S3Client({ endpoint: 'https://storage.example.test', region: 'us-east-1', accessKey: 'TEST', secretKey: 'secret', pathStyle: true });
+  await expect(client.listBuckets()).rejects.toThrow('CORS rules allow this console');
+  vi.unstubAllGlobals();
+});
 
 describe('AWS request encoding', () => {
   it('uses RFC 3986 encoding required by SigV4', () => {

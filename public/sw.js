@@ -1,4 +1,4 @@
-const CACHE = 's3-console-v3';
+const CACHE = 's3-console-v4';
 // Vite replaces this list with the current fingerprinted bundle at build time.
 const SHELL = ['/','/index.html','/manifest.webmanifest','/favicon.svg'];
 const matchCached = request => caches.match(request, { ignoreVary: true });

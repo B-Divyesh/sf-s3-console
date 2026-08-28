@@ -11,7 +11,7 @@ function precachedServiceWorker(): Plugin {
         .filter(file => file.startsWith('assets/') && /\.(?:js|css)$/.test(file))
         .map(file => `/${file}`);
       const source = readFileSync(resolve(import.meta.dirname, 'public/sw.js'), 'utf8')
-        .replace(/const SHELL = \[[^\n]*\];/, `const SHELL = ${JSON.stringify(['/', '/index.html', '/manifest.webmanifest', '/favicon.svg', ...assets])};`);
+        .replace(/const SHELL = \[[^\n]*\];/, `const SHELL = ${JSON.stringify(['/', '/demo', '/privacy', '/terms', '/index.html', '/manifest.webmanifest', '/favicon.svg', '/apple-touch-icon.png', ...assets])};`);
       writeFileSync(resolve(options.dir!, 'sw.js'), source);
     }
   };

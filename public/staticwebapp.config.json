@@ -3,6 +3,9 @@
     "rewrite": "/index.html",
     "exclude": ["/assets/*.{webp,png,jpg,jpeg,svg,woff,woff2,css,js}", "/favicon.svg", "/robots.txt", "/sitemap.xml", "/sw.js", "/manifest.webmanifest"]
   },
+  "responseOverrides": {
+    "404": { "rewrite": "/404.html", "statusCode": 404 }
+  },
   "globalHeaders": {
     "cache-control": "no-cache, max-age=0, must-revalidate",
     "content-security-policy": "default-src 'self'; connect-src *; img-src 'self' blob: data:; style-src 'self'; script-src 'self'; font-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'",
@@ -22,6 +25,11 @@
     {
       "route": "/manifest.webmanifest",
       "headers": { "cache-control": "no-cache, max-age=0, must-revalidate" }
+    },
+    {
+      "route": "/404",
+      "rewrite": "/404.html",
+      "statusCode": 404
     }
   ],
   "mimeTypes": { ".webmanifest": "application/manifest+json" }

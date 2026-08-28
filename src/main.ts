@@ -2,16 +2,19 @@ import '@fontsource-variable/space-grotesk/wght.css';
 import '@fontsource/ibm-plex-mono/400.css';
 import '@fontsource/ibm-plex-mono/600.css';
 import './style.css';
-import { S3Client, type Bucket, type Connection, type CorsRule, type LifecycleRule, type S3Object } from './s3';
+import { S3Client, endpointDiagnostic, type Bucket, type Connection, type CorsRule, type LifecycleRule, type S3Object } from './s3';
+import { DemoClient, type ConsoleClient } from './demo';
 
 type NoticeKind = 'success' | 'error' | 'info';
 type AppState = {
-  connection?: Connection; client?: S3Client; buckets: Bucket[]; bucket?: string; prefix: string;
+  connection?: Connection; client?: ConsoleClient; buckets: Bucket[]; bucket?: string; prefix: string; demo: boolean;
   objects: S3Object[]; prefixes: string[]; nextToken?: string; loading: boolean; filter: string;
 };
 
 const app = document.querySelector<HTMLDivElement>('#app')!;
-const state: AppState = { buckets: [], objects: [], prefixes: [], prefix: '', loading: false, filter: '' };
+const state: AppState = { buckets: [], objects: [], prefixes: [], prefix: '', loading: false, filter: '', demo: false };
+const buildId = 'e9e66e3-r1';
+const siteUrl = 'https://s3-console.sociobot.in';
 
 const icons: Record<string, string> = {
   mark: '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M3 9 16 3l13 6-13 6L3 9Zm0 7 13 6 13-6M3 23l13 6 13-6"/></svg>',
@@ -46,7 +49,7 @@ function themeButton(): string {
 function bindTheme(): void {
   document.querySelector('#theme-toggle')?.addEventListener('click', () => {
     const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
-    document.documentElement.dataset.theme = next; localStorage.setItem('s3-theme', next);
+    document.documentElement.dataset.theme = next; if (!state.demo) localStorage.setItem('s3-theme', next);
   });
 }
 
@@ -63,71 +66,129 @@ function setBusy(button: HTMLButtonElement, busy: boolean, label = 'Working…')
   else { button.innerHTML = button.dataset.label || button.innerHTML; button.disabled = false; }
 }
 
+function header(): string {
+  return `<header class="site-head"><a class="brand" href="/">${icons.mark}<span>S3 Console</span></a><nav class="site-nav" aria-label="Main navigation"><a href="/">Home</a><a href="/demo">Demo</a><a href="/privacy">Privacy</a></nav><div class="head-actions">${themeButton()}</div></header>`;
+}
+
+function footer(): string {
+  return `<footer class="site-footer"><p>Manage S3-compatible storage from your browser. <span>Build ${buildId}</span></p><nav aria-label="Footer"><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="https://github.com/B-Divyesh/sf-s3-console">Source <span class="sr-only">(opens on GitHub)</span> ↗</a><a href="https://github.com/B-Divyesh/sf-s3-console/blob/main/.factory/design.md">Artwork provenance <span class="sr-only">(opens on GitHub)</span> ↗</a><a href="https://sociobot.in">Built by Param Factory <span class="sr-only">(opens externally)</span> ↗</a></nav></footer>`;
+}
+
+function setMetadata(title: string, description: string, path: string): void {
+  document.title = title;
+  document.querySelector<HTMLMetaElement>('meta[name="description"]')!.content = description;
+  document.querySelector<HTMLLinkElement>('link[rel="canonical"]')!.href = `${siteUrl}${path}`;
+  document.querySelector<HTMLMetaElement>('meta[property="og:title"]')!.content = title;
+  document.querySelector<HTMLMetaElement>('meta[property="og:description"]')!.content = description;
+  document.querySelector<HTMLMetaElement>('meta[property="og:url"]')!.content = `${siteUrl}${path}`;
+  document.querySelector<HTMLMetaElement>('meta[name="twitter:title"]')!.content = title;
+  document.querySelector<HTMLMetaElement>('meta[name="twitter:description"]')!.content = description;
+}
+
 function legalPage(kind: 'privacy' | 'terms'): void {
   const privacy = kind === 'privacy';
-  document.title = `${privacy ? 'Privacy' : 'Terms'} — S3 Console`;
-  app.innerHTML = `<header class="legal-head"><a class="brand" href="/">${icons.mark}<span>S3 Console</span></a>${themeButton()}</header>
-    <main id="main" class="legal-page"><p class="eyebrow">${privacy ? 'Local-first by design' : 'The plain-language agreement'}</p>
-    <h1>${privacy ? 'Privacy, without a footnote.' : 'Terms of use.'}</h1>
-    ${privacy ? `<p class="lede">S3 Console has no server, account system, analytics, cookies, or tracking. Your browser talks directly to the endpoint you choose.</p>
-      <h2>What stays in your browser</h2><p>Endpoint settings and credentials are kept in session storage by default and disappear when the tab session ends. If you explicitly select “Remember on this device,” they are stored in local storage until you disconnect or clear site data.</p>
-      <h2>What leaves your browser</h2><p>S3 API requests, including access-key identifiers and cryptographic signatures, go only to your configured endpoint. Secret keys are used locally to sign requests and are never included directly in a request.</p>
-      <h2>Offline cache</h2><p>A service worker may cache public application files for resilience. It does not cache S3 responses, bucket names, objects, or credentials.</p>` :
-      `<p class="lede">S3 Console is free, open-source software provided as a browser-based client for systems you are authorized to access.</p>
+  const title = `${privacy ? 'Privacy' : 'Terms'} — S3 Console`;
+  setMetadata(title, privacy ? 'How S3 Console handles credentials, requests, and browser storage.' : 'Terms for using the S3 Console browser application.', `/${kind}`);
+  app.innerHTML = `${header()}<main id="main" class="legal-page"><p class="eyebrow">${privacy ? 'Browser data policy' : 'Plain-language agreement'}</p>
+    <h1 tabindex="-1">${privacy ? 'How your storage data is handled' : 'Terms of use'}</h1>
+    ${privacy ? `<p class="lede">The console has no account system, analytics, cookies, or tracking.</p>
+      <h2>What stays in your browser</h2><p>Connection details use session storage by default. Selecting “Remember on this device” uses local storage until you disconnect.</p>
+      <h2>What leaves your browser</h2><p>Your browser sends signed requests to the object store you configure. The demo sends no object-store requests.</p>
+      <h2>Offline cache</h2><p>The service worker caches public console files. It does not cache storage responses, bucket names, objects, or credentials.</p>` :
+      `<p class="lede">S3 Console is MIT-licensed software for object stores you are authorized to access.</p>
       <h2>Your responsibility</h2><p>You are responsible for your endpoint configuration, credentials, permissions, backups, and any bucket or object operations you perform. Confirm destructive actions carefully.</p>
       <h2>No warranty</h2><p>The software is provided “as is,” without warranty. To the fullest extent permitted by law, the authors are not liable for loss arising from its use. The MIT License in the source repository controls.</p>
       <h2>Acceptable use</h2><p>Do not use this console to access storage without authorization or to violate applicable law.</p>`}
-    <p class="legal-updated">Effective 27 August 2026 · <a href="/">Return to console</a></p></main>`;
-  bindTheme(); bindRoutes();
+    <p class="legal-updated">Effective 28 August 2026 · <a href="/">Return home</a></p></main>${footer()}`;
+  bindChrome();
 }
 
 function bindRoutes(): void {
-  document.querySelectorAll<HTMLAnchorElement>('a[href="/"],a[href="/privacy"],a[href="/terms"]').forEach(link => link.addEventListener('click', event => {
-    event.preventDefault(); history.pushState({}, '', link.pathname); route();
+  document.querySelectorAll<HTMLAnchorElement>('a[href^="/"]').forEach(link => link.addEventListener('click', event => {
+    if (link.origin !== location.origin) return;
+    event.preventDefault(); history.pushState({}, '', link.pathname + link.search + link.hash); route(true);
   }));
 }
 
-function route(): void {
-  if (location.pathname === '/privacy') return legalPage('privacy');
-  if (location.pathname === '/terms') return legalPage('terms');
-  document.title = 'S3 Console — one console, any object store';
+function bindChrome(): void { bindTheme(); bindRoutes(); }
+
+function focusRoute(): void {
+  scrollTo(0, 0); const heading = document.querySelector<HTMLElement>('main h1'); heading?.focus();
+  const live = document.querySelector<HTMLElement>('#route-status'); if (live) live.textContent = heading?.textContent || document.title;
+}
+
+function route(focus = false): void {
+  if (location.pathname === '/privacy') { legalPage('privacy'); if (focus) focusRoute(); return; }
+  if (location.pathname === '/terms') { legalPage('terms'); if (focus) focusRoute(); return; }
+  if (location.pathname === '/demo' || (location.pathname === '/' && new URLSearchParams(location.search).get('demo') === '1')) { enterDemo(focus); return; }
+  if (location.pathname !== '/') { renderNotFound(); if (focus) focusRoute(); return; }
+  if (state.demo) Object.assign(state, { demo: false, connection: undefined, client: undefined, buckets: [], bucket: undefined, prefix: '', objects: [], prefixes: [], nextToken: undefined });
+  setMetadata('S3 Console — manage S3-compatible storage', 'Connect to an S3-compatible object store and manage buckets and objects from your browser.', '/');
   if (state.connection) renderConsole(); else renderConnect();
+  if (focus) focusRoute();
 }
 
 function renderConnect(): void {
-  app.innerHTML = `<header class="site-head"><a class="brand" href="/">${icons.mark}<span>S3 Console</span></a><div class="head-actions"><span class="local-pill"><i></i>Browser-only</span>${themeButton()}</div></header>
+  app.innerHTML = `${header()}
     <main id="main" class="connect-main">
-      <section class="hero-copy"><p class="eyebrow">Universal S3 workbench // v1.0</p><h1>One console.<br><em>Any object store.</em></h1>
-        <p class="hero-lede">Browse buckets, move objects, edit policies, and make presigned links—without a vendor admin API or a middleman server.</p>
-        <ul class="compat-list" aria-label="Compatible object stores"><li>Garage</li><li>RustFS</li><li>SeaweedFS</li><li>Ceph RGW</li><li>Versity</li><li>AWS S3</li></ul>
+      <section class="hero-copy"><p class="eyebrow">Portable object-store console // v1.0</p><h1 tabindex="-1">Manage S3-compatible storage <em>from your browser</em></h1>
+        <p class="hero-lede">For self-hosters and small ops teams that manage buckets across different storage providers.</p>
+        <div class="hero-actions"><a class="button primary" href="/demo">Try it with sample data</a><span>Opens a disposable storage workspace.</span><a class="button" href="#connect-title">Connect your object store</a></div>
+        <ul class="plain-facts"><li>Free and open source</li><li>Credentials stay in your browser</li><li>Your endpoint must allow browser requests</li></ul>
       </section>
       <section class="connection-zone" aria-labelledby="connect-title">
         <picture class="hero-art"><source media="(max-width: 600px)" srcset="/assets/storage-workbench-mobile.webp"><img src="/assets/storage-workbench.webp" width="960" height="640" alt="Four different industrial storage crates linked to one terminal by orange cables" fetchpriority="high" decoding="async"></picture>
-        <form class="connect-card" id="connect-form"><div class="card-index">01 / CONNECT</div><h2 id="connect-title">Open a direct line</h2><p>Credentials never leave this browser for our servers.</p>
-          <label>Endpoint URL<input name="endpoint" type="url" inputmode="url" required placeholder="https://s3.example.net" autocomplete="url"></label>
-          <div class="field-grid"><label>Region<input name="region" required value="us-east-1" autocomplete="off"></label><label>Addressing<select name="pathStyle"><option value="true">Path-style</option><option value="false">Virtual-hosted</option></select></label></div>
+        <form class="connect-card" id="connect-form"><div class="card-index">01 / CONNECT</div><h2 id="connect-title">Connect your object store</h2><p>Your credentials go only to your chosen storage endpoint.</p>
+          <label>Storage endpoint URL<input name="endpoint" type="url" inputmode="url" required placeholder="https://s3.example.net" autocomplete="url"></label>
+          <div class="field-grid"><label>Region<input name="region" required value="us-east-1" autocomplete="off"></label><label>URL format<select name="pathStyle" aria-describedby="url-format-help"><option value="true">Path-style URLs</option><option value="false">Bucket subdomain URLs</option></select><small id="url-format-help">Choose bucket subdomains only when your DNS and certificate support them.</small></label></div>
           <label>Access key ID<input name="accessKey" required autocomplete="username" spellcheck="false"></label>
           <label>Secret access key<input name="secretKey" type="password" required autocomplete="current-password"></label>
           <details><summary>Temporary credentials</summary><label>Session token <span>Optional</span><textarea name="sessionToken" rows="2" autocomplete="off"></textarea></label></details>
-          <label class="check-row"><input name="remember" type="checkbox"><span><strong>Remember on this device</strong><small>Stores credentials in localStorage. Leave off on shared machines.</small></span></label>
-          <div class="cors-note"><strong>Before connecting</strong><span>Your endpoint must allow this site’s origin in its CORS configuration. <a href="#cors-help">See a starter rule</a>.</span></div>
-          <button class="button primary wide" type="submit">Test & connect <span aria-hidden="true">→</span></button><p class="form-status" aria-live="polite"></p>
+          <label class="check-row"><input name="remember" type="checkbox"><span><strong>Remember on this device</strong><small>Saves credentials in this browser until you disconnect. Leave off on shared machines.</small></span></label>
+          <div class="cors-note"><strong>Before connecting</strong><span>Your storage server must allow browser requests from this site. <a href="#cors-help">View a browser-access starter rule</a>.</span></div>
+          <button class="button primary wide" type="submit">Test and connect <span aria-hidden="true">→</span></button><p class="form-status" aria-live="polite"></p>
         </form>
       </section>
-      <section id="cors-help" class="cors-help"><p class="eyebrow">Required once per endpoint</p><h2>Browser access needs CORS.</h2><p>Add the console origin to your store’s CORS rules, allow GET, PUT, POST, DELETE and HEAD, and expose ETag for multipart uploads.</p><pre tabindex="0"><code>{
+      <section class="how-it-works"><p class="eyebrow">Three steps</p><h2>How it works</h2><ol><li><strong>Connect</strong><span>Enter one storage endpoint and access key.</span></li><li><strong>Browse</strong><span>Open buckets and inspect object details.</span></li><li><strong>Change</strong><span>Upload files or edit supported bucket settings.</span></li></ol></section>
+      <section id="cors-help" class="cors-help"><p class="eyebrow">Set up each storage server once</p><h2>Allow browser requests</h2><p>Add this site to the object store’s browser-access rules. Allow the five listed methods. Expose ETag for large uploads.</p><pre tabindex="0"><code>{
   "AllowedOrigins": ["https://s3-console.sociobot.in"],
   "AllowedMethods": ["GET", "PUT", "POST", "DELETE", "HEAD"],
   "AllowedHeaders": ["*"], "ExposeHeaders": ["ETag"]
-}</code></pre></section>
+}</code></pre></section><section class="scope"><p class="eyebrow">Product boundary</p><h2>Storage operations, not provider accounts</h2><p>The console does not manage users, replication, monitoring, or provider-specific settings.</p></section>
     </main>
-    <footer class="site-footer"><p>Open-source utility. No telemetry. <span>Generated illustration disclosed.</span></p><nav aria-label="Legal"><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="https://github.com/B-Divyesh/sf-s3-console">Source ↗</a></nav></footer>`;
-  bindTheme(); bindRoutes();
+    ${footer()}`;
+  bindChrome();
   document.querySelector('#connect-form')?.addEventListener('submit', connect);
+}
+
+function renderNotFound(): void {
+  setMetadata('Page not found — S3 Console', 'This S3 Console page does not exist. Return home or open the sample workspace.', '/404');
+  app.innerHTML = `${header()}<main id="main" class="not-found"><p class="eyebrow">404 / Missing crate</p><h1 tabindex="-1">This storage aisle does not exist</h1><p>The address may be old or mistyped.</p><div><a class="button primary" href="/">Return home</a><a class="button" href="/demo">Open sample workspace</a></div></main>${footer()}`;
+  bindChrome();
+}
+
+function enterDemo(focus = false): void {
+  setMetadata('Demo — S3 Console', 'Try S3 Console with isolated sample buckets and objects. No credentials or setup needed.', '/demo');
+  if (state.demo && state.client) { renderConsole(); if (focus) focusRoute(); return; }
+  const client = new DemoClient();
+  Object.assign(state, { demo: true, connection: { endpoint: 'https://sample.invalid', region: 'us-east-1', accessKey: '', secretKey: '', pathStyle: true }, client, buckets: [], bucket: 'media-archive', prefix: '', objects: [], prefixes: [], filter: '', nextToken: undefined });
+  void Promise.all([client.listBuckets(), client.listObjects('media-archive')]).then(([buckets, page]) => {
+    state.buckets = buckets; state.objects = page.objects; state.prefixes = page.prefixes; state.nextToken = page.nextToken; renderConsole(); if (focus) focusRoute();
+  });
+}
+
+function resetDemo(): void {
+  const client = new DemoClient();
+  Object.assign(state, { client, buckets: [], bucket: 'media-archive', prefix: '', objects: [], prefixes: [], filter: '', nextToken: undefined });
+  void Promise.all([client.listBuckets(), client.listObjects('media-archive')]).then(([buckets, page]) => {
+    state.buckets = buckets; state.objects = page.objects; state.prefixes = page.prefixes; state.nextToken = page.nextToken; renderConsole(); notice('Sample workspace reset.', 'success');
+  });
 }
 
 async function connect(event: Event): Promise<void> {
   event.preventDefault(); const form = event.currentTarget as HTMLFormElement; const data = new FormData(form); const button = form.querySelector<HTMLButtonElement>('button[type="submit"]')!;
   const connection: Connection = { endpoint: String(data.get('endpoint')).trim(), region: String(data.get('region')).trim(), accessKey: String(data.get('accessKey')).trim(), secretKey: String(data.get('secretKey')), sessionToken: String(data.get('sessionToken') || '').trim() || undefined, pathStyle: data.get('pathStyle') === 'true' };
+  const diagnostic = endpointDiagnostic(connection.endpoint, location.protocol); if (diagnostic) { form.querySelector('.form-status')!.textContent = diagnostic; notice(diagnostic, 'error'); return; }
   setBusy(button, true, 'Testing endpoint…');
   try {
     const client = new S3Client(connection); const buckets = await client.listBuckets();
@@ -139,21 +200,22 @@ async function connect(event: Event): Promise<void> {
 }
 
 function renderConsole(): void {
-  app.innerHTML = `<div class="console-shell"><header class="console-head"><button class="mobile-nav" id="mobile-nav" aria-label="Show buckets">${icons.bucket}</button><a class="brand compact" href="/">${icons.mark}<h1>S3 Console</h1></a>
-    <div class="endpoint-chip"><i></i><span><strong>Connected</strong>${escapeHtml(new URL(state.connection!.endpoint).host)}</span></div>
-    <div class="console-actions">${themeButton()}<button class="button small" id="disconnect" title="Disconnect">Disconnect</button></div></header>
+  const banner = state.demo ? `<aside class="demo-banner" aria-label="Demo mode"><strong>Demo — sample data, nothing is saved</strong><span>Changes last only in this tab.</span><div><button class="text-button" id="reset-demo">Reset demo</button><a href="/" aria-label="Start for real — connect your store">Start for real</a></div></aside>` : '';
+  app.innerHTML = `${banner}<div class="console-shell ${state.demo ? 'has-demo-banner' : ''}"><header class="console-head"><button class="mobile-nav" id="mobile-nav" aria-label="Show buckets">${icons.bucket}</button><a class="brand compact" href="/">${icons.mark}<span>S3 Console</span></a>
+    <div class="endpoint-chip"><i></i><span><strong>${state.demo ? 'Sample workspace' : 'Connected'}</strong>${state.demo ? 'In-memory data' : escapeHtml(new URL(state.connection!.endpoint).host)}</span></div>
+    <nav class="console-links" aria-label="Console links"><a href="/">Home</a><a href="/demo">Demo</a><a href="/privacy">Privacy</a></nav><div class="console-actions">${themeButton()}${state.demo ? '' : '<button class="button small" id="disconnect" title="Disconnect">Disconnect</button>'}</div></header>
     <aside class="bucket-rail" id="bucket-rail"><div class="rail-label"><span>Buckets</span><b>${state.buckets.length.toString().padStart(2, '0')}</b></div><button class="button rail-create" id="create-bucket">＋ Create bucket</button><nav aria-label="Buckets"><ul class="bucket-list">${state.buckets.map(bucket => `<li><button data-bucket="${escapeHtml(bucket.name)}" class="${bucket.name === state.bucket ? 'active' : ''}">${icons.bucket}<span>${escapeHtml(bucket.name)}</span></button></li>`).join('')}</ul></nav><div class="rail-foot"><span>Region</span><strong>${escapeHtml(state.connection!.region)}</strong><span>Addressing</span><strong>${state.connection!.pathStyle ? 'Path-style' : 'Virtual host'}</strong></div></aside>
-    <main id="main" class="object-workspace">${workspaceHtml()}</main></div>`;
-  bindConsole(); bindTheme();
+    <main id="main" class="object-workspace">${workspaceHtml()}</main></div>${footer()}`;
+  bindConsole(); bindChrome();
 }
 
 function workspaceHtml(): string {
-  if (!state.bucket) return `<section class="workspace-empty"><span class="big-mark">${icons.mark}</span><p class="eyebrow">Connection is live</p><h2>${state.buckets.length ? 'Choose a bucket to begin.' : 'Your endpoint has no buckets yet.'}</h2><p>${state.buckets.length ? 'Select one from the bucket index. Nothing is copied or proxied through this app.' : 'Create your first bucket to start storing objects.'}</p><button class="button primary" id="empty-create">＋ Create bucket</button></section>`;
+  if (!state.bucket) return `<section class="workspace-empty"><span class="big-mark">${icons.mark}</span><p class="eyebrow">${state.demo ? 'Sample workspace' : 'Connection is live'}</p><h1 tabindex="-1">${state.buckets.length ? 'Choose a bucket to begin' : 'Your endpoint has no buckets yet'}</h1><p>${state.buckets.length ? 'Select one from the bucket index.' : 'Create your first bucket to start storing objects.'}</p><button class="button primary" id="empty-create">＋ Create bucket</button></section>`;
   const parent = state.prefix ? state.prefix.replace(/[^/]+\/$/, '') : '';
   const filteredPrefixes = state.prefixes.filter(prefix => prefix.toLowerCase().includes(state.filter.toLowerCase()));
   const filteredObjects = state.objects.filter(object => object.key.toLowerCase().includes(state.filter.toLowerCase()));
-  return `<section class="workspace-head"><div><p class="eyebrow">Object ledger</p><div class="title-line"><h2>${escapeHtml(state.bucket)}</h2><span>${state.objects.length + state.prefixes.length} entries</span></div><nav class="breadcrumbs" aria-label="Current path"><button data-prefix="">${escapeHtml(state.bucket)}</button>${state.prefix.split('/').filter(Boolean).map((part, index, all) => `<span>/</span><button data-prefix="${escapeHtml(all.slice(0, index + 1).join('/') + '/')}">${escapeHtml(part)}</button>`).join('')}</nav></div><button class="button" id="bucket-settings">${icons.settings} Bucket settings</button></section>
-    <section class="object-tools" aria-label="Object actions"><label class="search"><span>⌕</span><span class="sr-only">Filter current objects</span><input id="object-filter" type="search" value="${escapeHtml(state.filter)}" placeholder="Filter this view"></label><div><input class="sr-only" type="file" id="file-input" multiple><button class="button" id="new-folder">＋ New folder</button><button class="button primary" id="upload">${icons.upload} Upload objects</button></div></section>
+  return `<section class="workspace-head"><div><p class="eyebrow">${state.demo ? 'Sample object ledger' : 'Object ledger'}</p><div class="title-line"><h1 tabindex="-1">${escapeHtml(state.bucket)}</h1><span>${state.objects.length + state.prefixes.length} entries</span></div><nav class="breadcrumbs" aria-label="Current path"><button data-prefix="">${escapeHtml(state.bucket)}</button>${state.prefix.split('/').filter(Boolean).map((part, index, all) => `<span>/</span><button data-prefix="${escapeHtml(all.slice(0, index + 1).join('/') + '/')}">${escapeHtml(part)}</button>`).join('')}</nav></div><button class="button" id="bucket-settings">${icons.settings} Bucket settings</button></section>
+    <section class="object-tools" aria-label="Object actions"><label class="search"><span>⌕</span><span class="sr-only">Filter current objects</span><input id="object-filter" type="search" value="${escapeHtml(state.filter)}" placeholder="Filter this view"></label><div><input class="sr-only" type="file" id="file-input" aria-label="Choose objects to upload" multiple><button class="button" id="new-folder">＋ New folder</button><button class="button primary" id="upload">${icons.upload} Upload objects</button></div></section>
     <div class="upload-progress" id="upload-progress" hidden><div><span>Uploading</span><strong id="upload-label">Preparing…</strong></div><progress id="upload-meter" max="1" value="0"></progress></div>
     <section class="ledger" aria-live="polite">${state.loading ? skeletonHtml() : ledgerHtml(filteredPrefixes, filteredObjects, parent)}</section>`;
 }
@@ -171,6 +233,7 @@ function ledgerHtml(prefixes: string[], objects: S3Object[], parent: string): st
 
 function bindConsole(): void {
   document.querySelector('#disconnect')?.addEventListener('click', disconnect);
+  document.querySelector('#reset-demo')?.addEventListener('click', resetDemo);
   document.querySelector('#mobile-nav')?.addEventListener('click', () => document.querySelector('#bucket-rail')?.classList.toggle('open'));
   document.querySelectorAll<HTMLButtonElement>('[data-bucket]').forEach(button => button.addEventListener('click', () => selectBucket(button.dataset.bucket!)));
   ['#create-bucket', '#empty-create'].forEach(selector => document.querySelector(selector)?.addEventListener('click', createBucketDialog));
@@ -210,6 +273,7 @@ async function loadObjects(append = false): Promise<void> {
 
 function openDialog(html: string, className = ''): HTMLDialogElement {
   const dialog = document.createElement('dialog'); dialog.className = className; dialog.innerHTML = html; document.body.append(dialog);
+  const heading = dialog.querySelector<HTMLElement>('h2'); if (heading) { heading.id ||= `dialog-title-${Date.now()}`; dialog.setAttribute('aria-labelledby', heading.id); }
   dialog.addEventListener('close', () => dialog.remove()); dialog.querySelectorAll('[data-close]').forEach(button => button.addEventListener('click', () => dialog.close())); dialog.showModal();
   return dialog;
 }
@@ -263,6 +327,12 @@ async function objectDialog(key: string): Promise<void> {
 function bucketSettingsDialog(): void {
   const dialog = openDialog(`<div class="settings-dialog"><div class="dialog-head"><div><p class="eyebrow">Bucket control plane</p><h2>${escapeHtml(state.bucket)}</h2></div><button class="icon-button" type="button" data-close aria-label="Close">${icons.close}</button></div><div class="settings-layout"><div class="tab-list" role="tablist" aria-label="Bucket settings"><button role="tab" aria-selected="true" data-tab="versioning">Versioning</button><button role="tab" aria-selected="false" data-tab="policy">Policy</button><button role="tab" aria-selected="false" data-tab="cors">CORS</button><button role="tab" aria-selected="false" data-tab="lifecycle">Lifecycle</button><button role="tab" aria-selected="false" data-tab="danger">Danger zone</button></div><section class="tab-panel" id="settings-panel" aria-live="polite"><div class="inspector-loading"><span class="spinner"></span>Reading configuration…</div></section></div></div>`, 'settings-modal');
   dialog.querySelectorAll<HTMLButtonElement>('[data-tab]').forEach(button => button.addEventListener('click', () => { dialog.querySelectorAll('[data-tab]').forEach(tab => tab.setAttribute('aria-selected', String(tab === button))); void renderSettingsPanel(dialog, button.dataset.tab!); }));
+  dialog.querySelector('.tab-list')?.addEventListener('keydown', event => {
+    if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes((event as KeyboardEvent).key)) return;
+    event.preventDefault(); const tabs = [...dialog.querySelectorAll<HTMLButtonElement>('[data-tab]')]; const current = tabs.indexOf(document.activeElement as HTMLButtonElement); const key = (event as KeyboardEvent).key;
+    const next = key === 'Home' ? 0 : key === 'End' ? tabs.length - 1 : (current + (key === 'ArrowRight' || key === 'ArrowDown' ? 1 : -1) + tabs.length) % tabs.length;
+    tabs[next].focus(); tabs[next].click();
+  });
   void renderSettingsPanel(dialog, 'versioning');
 }
 
@@ -317,6 +387,7 @@ async function deleteBucket(dialog: HTMLDialogElement): Promise<void> {
 }
 
 function disconnect(): void {
+  if (state.demo) { Object.assign(state, { demo: false, connection: undefined, client: undefined, buckets: [], bucket: undefined, prefix: '', objects: [], prefixes: [], nextToken: undefined }); history.pushState({}, '', '/'); route(true); return; }
   if (!confirm('Disconnect and remove the saved endpoint and credentials from this browser?')) return;
   localStorage.removeItem('s3-connection'); sessionStorage.removeItem('s3-connection'); Object.assign(state, { connection: undefined, client: undefined, buckets: [], bucket: undefined, prefix: '', objects: [], prefixes: [], nextToken: undefined }); renderConnect(); notice('Credentials removed from this browser.', 'success');
 }
@@ -327,12 +398,15 @@ function restore(): void {
   try { state.connection = JSON.parse(stored) as Connection; state.client = new S3Client(state.connection); void state.client.listBuckets().then(buckets => { state.buckets = buckets; renderConsole(); }).catch(error => { notice(error instanceof Error ? error.message : 'Could not reconnect', 'error'); }); } catch { localStorage.removeItem('s3-connection'); sessionStorage.removeItem('s3-connection'); }
 }
 
-window.addEventListener('popstate', route);
+window.addEventListener('popstate', () => route(true));
 window.addEventListener('offline', () => notice('You are offline. Existing S3 actions will wait until your connection returns.', 'error'));
 window.addEventListener('online', () => notice('Back online. You can retry the last action.', 'success'));
-document.documentElement.dataset.theme = localStorage.getItem('s3-theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-restore(); route();
+const initialDemo = location.pathname === '/demo' || (location.pathname === '/' && new URLSearchParams(location.search).get('demo') === '1');
+document.documentElement.dataset.theme = (!initialDemo && localStorage.getItem('s3-theme')) || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+if (!initialDemo) restore();
+route();
 if ('serviceWorker' in navigator && import.meta.env.PROD) window.addEventListener('load', () => {
+  const hadController = Boolean(navigator.serviceWorker.controller);
   const offerUpdate = (registration: ServiceWorkerRegistration) => {
     const waiting = registration.waiting;
     if (!waiting || !navigator.serviceWorker.controller || document.querySelector('#sw-update')) return;
@@ -348,5 +422,5 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) window.addEventListene
       worker?.addEventListener('statechange', () => { if (worker.state === 'installed') offerUpdate(registration); });
     });
   });
-  navigator.serviceWorker.addEventListener('controllerchange', () => location.reload());
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController) location.reload(); });
 });

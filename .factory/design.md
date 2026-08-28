@@ -48,3 +48,5 @@ Prompt sheet: “top-down editorial still life, four mismatched unbranded indust
 Generated with Azure OpenAI image deployment `factory-image` on 2026-08-27. Original generation is retained in `assets/src/` with its prompt sidecar. Generated imagery is original for this product and disclosed in the footer.
 
 Icons are original inline SVG line symbols authored for this interface (bucket, object, link, settings) using square caps and the same 2px rule. No third-party icon runtime is used.
+
+The 1200 × 630 social preview and 180 px touch icon are crops of the original storage-crate artwork above. They were composed locally on 28 August 2026 and introduce no new source material.

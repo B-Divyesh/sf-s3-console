@@ -16,6 +16,14 @@ export interface BucketDeleteProgress { phase: 'listing' | 'deleting' | 'bucket'
 export interface CorsRule { id?: string; origins: string[]; methods: string[]; headers?: string[]; exposeHeaders?: string[]; maxAgeSeconds?: number }
 export interface LifecycleRule { id: string; status: 'Enabled' | 'Disabled'; prefix: string; expirationDays?: number; noncurrentDays?: number }
 
+export function endpointDiagnostic(endpoint: string, pageProtocol: string): string | undefined {
+  let url: URL;
+  try { url = new URL(endpoint); } catch { return 'Enter a complete storage endpoint URL, including https://.'; }
+  if (!['http:', 'https:'].includes(url.protocol)) return 'Use an HTTP or HTTPS storage endpoint.';
+  if (pageProtocol === 'https:' && url.protocol === 'http:') return 'Browsers block HTTP storage endpoints from an HTTPS page. Use HTTPS for your object store.';
+  return undefined;
+}
+
 const encoder = new TextEncoder();
 
 export function awsEncode(value: string): string {

@@ -1,0 +1,206 @@
+import { expect, test, type Page } from 'playwright/test';
+
+async function openDemo(page: Page): Promise<void> {
+  await page.goto('/?demo=1');
+  await expect(page.getByRole('heading', { level: 1, name: 'media-archive' })).toBeVisible();
+}
+
+async function openSampleObject(page: Page): Promise<void> {
+  await openDemo(page);
+  await page.getByRole('button', { name: /campaigns/ }).click();
+  await page.getByRole('button', { name: /autumn/ }).click();
+  await page.locator('button[data-object$="hero-notes.txt"]').click();
+  await expect(page.getByRole('dialog').getByRole('heading', { name: 'hero-notes.txt' })).toBeVisible();
+}
+
+async function openSettings(page: Page): Promise<void> {
+  await openDemo(page);
+  await page.getByRole('button', { name: 'Bucket settings' }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+}
+
+test('@claim:demo-sandbox loads isolated data, mutates it, and resets it', async ({ page }) => {
+  const requests: string[] = [];
+  page.on('request', request => requests.push(request.url()));
+  await openDemo(page);
+  await expect(page.getByText('Demo — sample data, nothing is saved')).toBeVisible();
+  await expect(page.getByLabel('Buckets', { exact: true }).getByRole('button', { name: 'media-archive' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /nightly-backups/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /static-site/ })).toBeVisible();
+  await page.getByRole('button', { name: /Create bucket/ }).first().click();
+  await page.getByLabel('Bucket name').fill('scratch-space');
+  await page.getByRole('dialog').getByRole('button', { name: 'Create bucket' }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'scratch-space' })).toBeVisible();
+  await page.getByRole('button', { name: 'Reset demo' }).click();
+  await expect(page.getByRole('button', { name: /scratch-space/ })).toHaveCount(0);
+  await page.getByRole('link', { name: /Start for real/ }).click();
+  await expect(page.getByRole('heading', { level: 1, name: /Manage S3-compatible storage/ })).toBeVisible();
+  expect(requests.every(url => new URL(url).origin === new URL(page.url()).origin)).toBeTruthy();
+  expect(await page.evaluate(() => ({ local: localStorage.getItem('s3-connection'), session: sessionStorage.getItem('s3-connection') }))).toEqual({ local: null, session: null });
+});
+
+test('@claim:bucket-management creates and safely removes a sample bucket', async ({ page }) => {
+  await openDemo(page);
+  await page.getByRole('button', { name: /Create bucket/ }).first().click();
+  await page.getByLabel('Bucket name').fill('release-candidate');
+  await page.getByRole('dialog').getByRole('button', { name: 'Create bucket' }).click();
+  await page.getByRole('button', { name: 'Bucket settings' }).click();
+  await page.getByRole('tab', { name: 'Danger zone' }).click();
+  page.once('dialog', dialog => dialog.accept());
+  await page.getByRole('button', { name: /Delete versions/ }).click();
+  await expect(page.getByRole('button', { name: /release-candidate/ })).toHaveCount(0);
+});
+
+test('@claim:object-browser opens prefix folders and filters object names', async ({ page }) => {
+  await openDemo(page);
+  await page.getByRole('button', { name: /campaigns/ }).click();
+  await page.getByRole('button', { name: /autumn/ }).click();
+  await expect(page.getByText('hero-notes.txt', { exact: true })).toBeVisible();
+  await page.getByLabel('Filter current objects').fill('checklist');
+  await expect(page.getByText('launch-checklist.csv', { exact: true })).toBeVisible();
+  await expect(page.getByText('hero-notes.txt', { exact: true })).toHaveCount(0);
+});
+
+test('@claim:object-upload uploads a file into the current sample bucket', async ({ page }) => {
+  await openDemo(page);
+  await page.locator('#file-input').setInputFiles({ name: 'release-notes.txt', mimeType: 'text/plain', buffer: Buffer.from('Release ready') });
+  await expect(page.getByText('release-notes.txt', { exact: true })).toBeVisible();
+});
+
+test('@claim:object-download downloads the original sample bytes', async ({ page }) => {
+  await openDemo(page);
+  await page.getByRole('button', { name: /brand/ }).click();
+  const downloadPromise = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Download brand/usage-guide.txt' }).click();
+  const download = await downloadPromise;
+  expect(await download.createReadStream().then(async stream => { let text = ''; for await (const chunk of stream) text += chunk.toString(); return text; })).toContain('cream, charcoal, orange, and lime');
+});
+
+test('@claim:object-delete deletes an object from the sample inventory', async ({ page }) => {
+  await openDemo(page);
+  await page.getByRole('button', { name: /brand/ }).click();
+  page.once('dialog', dialog => dialog.accept());
+  await page.getByRole('button', { name: 'Delete brand/usage-guide.txt' }).click();
+  await expect(page.getByText('usage-guide.txt', { exact: true })).toHaveCount(0);
+});
+
+test('@claim:metadata-edit saves and reloads object metadata', async ({ page }) => {
+  await openSampleObject(page);
+  const dialog = page.getByRole('dialog');
+  await dialog.getByLabel(/Metadata/).fill('owner=release-team\nreviewed=yes');
+  await dialog.getByRole('button', { name: 'Save details' }).click();
+  await page.locator('button[data-object$="hero-notes.txt"]').click();
+  await expect(page.getByRole('dialog').getByLabel(/Metadata/)).toHaveValue('owner=release-team\nreviewed=yes');
+});
+
+test('@claim:tag-edit saves and reloads object tags', async ({ page }) => {
+  await openSampleObject(page);
+  const dialog = page.getByRole('dialog');
+  await dialog.getByLabel(/Tags/).fill('project=autumn\nstatus=published');
+  await dialog.getByRole('button', { name: 'Save details' }).click();
+  await page.locator('button[data-object$="hero-notes.txt"]').click();
+  await expect(page.getByRole('dialog').getByLabel(/Tags/)).toHaveValue('project=autumn\nstatus=published');
+});
+
+test('@claim:policy-edit saves and reloads bucket policy JSON', async ({ page }) => {
+  await openSettings(page); const dialog = page.getByRole('dialog');
+  await dialog.getByRole('tab', { name: 'Policy' }).click();
+  const policy = '{"Version":"2012-10-17","Statement":[]}';
+  await dialog.getByLabel('Policy JSON').fill(policy);
+  await dialog.getByRole('button', { name: /Validate/ }).click();
+  await dialog.getByRole('tab', { name: 'Versioning' }).click();
+  await dialog.getByRole('tab', { name: 'Policy' }).click();
+  await expect(dialog.getByLabel('Policy JSON')).toContainText('"Statement": []');
+});
+
+test('@claim:cors-edit saves and reloads browser-access rules', async ({ page }) => {
+  await openSettings(page); const dialog = page.getByRole('dialog');
+  await dialog.getByRole('tab', { name: 'CORS' }).click();
+  const rules = '[{"id":"test","origins":["https://console.test"],"methods":["GET"]}]';
+  await dialog.getByLabel('Rule JSON').fill(rules);
+  await dialog.getByRole('button', { name: /save rules/i }).click();
+  await dialog.getByRole('tab', { name: 'Versioning' }).click(); await dialog.getByRole('tab', { name: 'CORS' }).click();
+  await expect(dialog.getByLabel('Rule JSON')).toContainText('https://console.test');
+});
+
+test('@claim:lifecycle-edit saves and reloads lifecycle rules', async ({ page }) => {
+  await openSettings(page); const dialog = page.getByRole('dialog');
+  await dialog.getByRole('tab', { name: 'Lifecycle' }).click();
+  const rules = '[{"id":"archive","status":"Enabled","prefix":"logs/","expirationDays":14}]';
+  await dialog.getByLabel('Rule JSON').fill(rules);
+  await dialog.getByRole('button', { name: /save rules/i }).click();
+  await dialog.getByRole('tab', { name: 'Versioning' }).click(); await dialog.getByRole('tab', { name: 'Lifecycle' }).click();
+  await expect(dialog.getByLabel('Rule JSON')).toContainText('"expirationDays": 14');
+});
+
+test('@claim:versioning-edit changes and reloads bucket versioning', async ({ page }) => {
+  await openSettings(page); const dialog = page.getByRole('dialog');
+  const toggle = dialog.getByRole('checkbox', { name: /Keep object versions/ });
+  await toggle.check(); await dialog.getByRole('button', { name: 'Save versioning' }).click();
+  await dialog.getByRole('tab', { name: 'Policy' }).click(); await dialog.getByRole('tab', { name: 'Versioning' }).click();
+  await expect(dialog.getByRole('checkbox', { name: /Keep object versions/ })).toBeChecked();
+});
+
+async function assertSignedLink(page: Page, label: 'Download (GET)' | 'Upload/replace (PUT)', method: 'GET' | 'PUT'): Promise<void> {
+  await openDemo(page); await page.getByRole('button', { name: /brand/ }).click();
+  await page.getByRole('button', { name: 'Create link for brand/usage-guide.txt' }).click();
+  const dialog = page.getByRole('dialog'); await dialog.getByLabel('Action').selectOption({ label });
+  await dialog.getByLabel('Expires in').selectOption('900'); await dialog.getByRole('button', { name: 'Generate URL' }).click();
+  const url = new URL(await dialog.getByLabel('Signed URL').inputValue());
+  expect(url.searchParams.get('demo-method')).toBe(method); expect(url.searchParams.get('X-Amz-Expires')).toBe('900');
+}
+
+test('@claim:presigned-download creates an expiring download link', async ({ page }) => {
+  await assertSignedLink(page, 'Download (GET)', 'GET');
+});
+
+test('@claim:presigned-upload creates an expiring upload link', async ({ page }) => {
+  await assertSignedLink(page, 'Upload/replace (PUT)', 'PUT');
+});
+
+test('@claim:privacy-boundary sends no demo requests off-origin and sets no cookies', async ({ page, context }) => {
+  const offOrigin: string[] = []; page.on('request', request => { if (new URL(request.url()).origin !== 'http://127.0.0.1:4173') offOrigin.push(request.url()); });
+  await openDemo(page); await page.getByRole('button', { name: /campaigns/ }).click(); await page.getByRole('button', { name: /autumn/ }).click();
+  expect(offOrigin).toEqual([]); expect(await context.cookies()).toEqual([]);
+  expect(await page.evaluate(() => Object.keys(localStorage).filter(key => !key.startsWith('demo:')))).toEqual([]);
+});
+
+test('@claim:credential-storage keeps normal connections session-only unless opted in', async ({ page }) => {
+  await page.route('https://storage.example.test/**', route => route.fulfill({ status: 200, contentType: 'application/xml', body: '<ListAllMyBucketsResult><Buckets></Buckets></ListAllMyBucketsResult>' }));
+  await page.goto('/'); await page.getByLabel('Storage endpoint URL').fill('https://storage.example.test'); await page.getByLabel('Access key ID').fill('TEST'); await page.getByLabel('Secret access key').fill('secret');
+  await page.getByRole('button', { name: 'Test and connect' }).click();
+  expect(await page.evaluate(() => ({ local: localStorage.getItem('s3-connection'), session: sessionStorage.getItem('s3-connection') }))).toMatchObject({ local: null, session: expect.stringContaining('storage.example.test') });
+});
+
+test('@claim:credential-disconnect removes both connection stores', async ({ page }) => {
+  await page.route('https://storage.example.test/**', route => route.fulfill({ status: 200, contentType: 'application/xml', body: '<ListAllMyBucketsResult><Buckets></Buckets></ListAllMyBucketsResult>' }));
+  await page.goto('/');
+  const saved = JSON.stringify({ endpoint: 'https://storage.example.test', region: 'us-east-1', accessKey: 'TEST', secretKey: 'secret', pathStyle: true });
+  await page.evaluate(value => { localStorage.setItem('s3-connection', value); sessionStorage.setItem('s3-connection', value); }, saved);
+  await page.reload(); await expect(page.getByRole('button', { name: 'Disconnect' })).toBeVisible();
+  page.once('dialog', dialog => dialog.accept()); await page.getByRole('button', { name: 'Disconnect' }).click();
+  expect(await page.evaluate(() => ({ local: localStorage.getItem('s3-connection'), session: sessionStorage.getItem('s3-connection') }))).toEqual({ local: null, session: null });
+});
+
+test('@claim:credential-routing sends signed requests only to the chosen endpoint without the secret', async ({ page }) => {
+  const seen: Array<{ url: string; headers: Record<string, string> }> = [];
+  await page.route('https://storage.example.test/**', route => { seen.push({ url: route.request().url(), headers: route.request().headers() }); return route.fulfill({ status: 200, contentType: 'application/xml', body: '<ListAllMyBucketsResult><Buckets></Buckets></ListAllMyBucketsResult>' }); });
+  await page.goto('/'); await page.getByLabel('Storage endpoint URL').fill('https://storage.example.test'); await page.getByLabel('Access key ID').fill('VISIBLEACCESS'); await page.getByLabel('Secret access key').fill('never-send-this'); await page.getByRole('button', { name: 'Test and connect' }).click();
+  await expect(page.getByText('Connected. Found 0 buckets.')).toBeVisible(); expect(seen).toHaveLength(1); expect(seen[0].url).toMatch(/^https:\/\/storage\.example\.test\//); expect(JSON.stringify(seen)).not.toContain('never-send-this'); expect(seen[0].headers.authorization).toContain('VISIBLEACCESS');
+});
+
+test('@claim:offline-shell reloads the sample workspace offline after one visit', async ({ page, context }) => {
+  await openDemo(page); await page.evaluate(() => navigator.serviceWorker.ready); await context.setOffline(true); await page.reload();
+  await expect(page.getByText('Demo — sample data, nothing is saved')).toBeVisible(); await expect(page.getByRole('heading', { level: 1, name: 'media-archive' })).toBeVisible();
+});
+
+test('@claim:theme-choice persists the selected theme in normal mode', async ({ page }) => {
+  await page.goto('/'); await page.getByRole('button', { name: 'Toggle color theme' }).click();
+  const theme = await page.locator('html').getAttribute('data-theme'); await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', theme!);
+});
+
+test('@claim:scope-boundary exposes no user, replication, monitoring, or provider account controls', async ({ page }) => {
+  await openDemo(page);
+  for (const name of [/manage users/i, /replication settings/i, /monitoring dashboard/i, /provider account/i]) await expect(page.getByRole('button', { name })).toHaveCount(0);
+});
