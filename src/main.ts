@@ -1,6 +1,3 @@
-import '@fontsource-variable/space-grotesk/wght.css';
-import '@fontsource/ibm-plex-mono/400.css';
-import '@fontsource/ibm-plex-mono/600.css';
 import './style.css';
 import { S3Client, endpointDiagnostic, type Bucket, type Connection, type CorsRule, type LifecycleRule, type S3Object } from './s3';
 import { DemoClient, type ConsoleClient } from './demo';
