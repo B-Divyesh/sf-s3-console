@@ -20,16 +20,16 @@ All four blocking findings in `.factory/review-1.md` are resolved. The repaired 
 
 ## Verification evidence
 
-Clean clone: `/tmp/s3-console-clean-v5iYhO` from commit `f893176` before the Azure-only configuration correction in `99b1c6c`.
+Final clean clone: `/tmp/s3-console-final-73yWHm` from application/config commit `99b1c6c` plus handoff commit `c5a718f`.
 
 ```text
 npm ci                         PASS — 62 packages, 0 vulnerabilities
 npm run build                  PASS — dist/index.html created
 npm test                       PASS — 12 passed; optional MinIO test skipped
-npm run test:claims            PASS — 21/21 browser claim tests
+npm run test:browser           PASS — 27/27 browser, claim, route, mobile, and accessibility tests
 ```
 
-The four repository claim tests ran in `npm test`, so every one of the 25 entries in `.factory/claims.json` passed from that clean clone. The follow-up `99b1c6c` only removed a deployment-invalid duplicate 404 route; its deployment-config test and production build passed before deployment.
+The four repository claim tests ran in `npm test`, and the other 21 ran in Playwright. Every entry in `.factory/claims.json` passed from the final clean clone.
 
 Full browser suite on the application candidate:
 
