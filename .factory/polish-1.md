@@ -54,4 +54,11 @@ Base reviewed: `9cbc19cdb4d32e8dd72496b8a9bc17981231b7d3`. This table closes eve
 
 ## Final deployment recheck
 
-Pending this work order’s deployment. The final handoff records the deployed commit, command output, cold-live results, and the final URL checks.
+Application commits `2fc3d5675a89546b946609e3022f05714bb4da54` and `cdef0ae0943ccdada295f825de257a1e19d374fc` were deployed with:
+
+```sh
+npm run build
+/opt/fleet/lib/deploy-static.sh s3-console /work/repo/dist
+```
+
+Cold Chromium checks against `https://s3-console.sociobot.in` confirmed these client-rendered route results: `/` → `S3 Console — manage S3-compatible storage`, `/demo` and `/?demo=1` → `Demo — S3 Console`, `/privacy` → `Privacy — S3 Console`, `/terms` → `Terms — S3 Console`, and `/missing-aisle` → `Page not found — S3 Console`. The browser recorded zero console errors. Live 390px Axe scans reported zero serious/critical violations, zero undersized controls, and no horizontal overflow on all five routes. The live demo mutation/reset check recorded zero off-origin requests, zero cookies, no `s3-connection`, and no normal local-storage keys. Screenshots are `/tmp/s3-console-polish-1-live-home-390.png`, `/tmp/s3-console-polish-1-live-demo-390.png`, `/tmp/s3-console-polish-1-live-privacy-390.png`, `/tmp/s3-console-polish-1-live-terms-390.png`, and `/tmp/s3-console-polish-1-live-404-390.png`.
