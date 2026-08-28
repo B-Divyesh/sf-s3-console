@@ -1,33 +1,45 @@
-# S3 Console review-4 handoff
+# S3 Console polish-4 handoff
 
 ## Outcome
 
-Independent adversarial review 4 is complete. No product code was modified. The review is **FAIL** with two documented findings in `.factory/review-4.md`:
+Polish round 4 is complete. Commit `ccb6ac6057ecf12ece9b4d9c1dc8e4ed452ce962` repairs the remaining review-4 mobile-navigation regression and copy drift, is pushed to `main`, and is deployed as Azure Static Web Apps deployment `e1bef7c9-547d-40b2-85e4-b9e4689bb2b0`.
 
-- **F-4-1 (blocking):** the live 390 px demo header hides Home, Demo, and Privacy; this is a regression/half-fix of M3.
-- **F-4-2 (minor):** landing and README use “portable,” an undefined adjective that drifts from the documented terminology.
+The mobile console now has a separate keyboard-operated route Menu. It exposes Home, Demo, and Privacy below the persistent demo banner without replacing the bucket control. Landing and README wording now consistently says “S3-compatible object store,” and the copy audit contains the complete landing/route-shell and README inventory.
 
-## Verification performed
+## Verification
 
-- Cold live Chromium checks at 390 × 844 and 1440 × 900 confirmed the home screen states the job, audience, and sample-data first action.
-- Live `/demo` and `?demo=1` immediately opened a populated sample workspace with the isolation banner, Reset demo, and Start for real. A fresh-context Reset produced no storage write or network request; the declared privacy/offline tests exercise the full mutation/reset/exit and interception boundaries.
-- Fresh clean checkout: `/tmp/s3-console-review4-clean.PYGzhX/repo`; `npm ci` found 0 vulnerabilities.
-- All 31 exact declared claim commands passed (27 browser claim tags and four repository claim tags). Aggregate browser claims passed 27/27. `npm test` passed from the clean checkout (16 tests; one optional MinIO test skipped without an endpoint).
-- Live route/metadata/link checks covered `/`, `/demo`, `?demo=1`, `/privacy`, `/terms`, client 404, and an actual missing-asset 404. Back navigation focused and announced the h1. All crawled same-origin and external footer links returned 200; the missing asset returned HTTP 404.
+- Clean clone: `/tmp/s3-console-polish4-clean.LUPQ0p/repo`; `npm ci` completed with 0 vulnerabilities.
+- Every one of the 31 exact commands declared in `.factory/claims.json` passed individually from that clone.
+- `npm run lint` passed.
+- `npm run test:clean` passed: 16 tests passed; the one environment-gated MinIO test was skipped in the no-endpoint unit run.
+- Pinned MinIO `RELEASE.2025-09-07T16-13-09Z` then passed multipart byte round-trip plus version/delete-marker bucket cleanup.
+- `npm run test:browser` passed: 35 tests, including the new 390 px bucket/menu route-shell and keyboard/focus check. It includes offline, privacy, storage, metadata, routing, mobile, and Axe coverage.
+- Local Lighthouse mobile: performance 100, accessibility 100, best practices 100, SEO 100; LCP 1.7 s, CLS 0, TBT 0 ms.
+- Cold live Lighthouse mobile: performance 100, accessibility 100, best practices 100, SEO 100; LCP 1.4 s, CLS 0, TBT 40 ms.
+- `verify-url.sh` passed at the custom domain. `/tmp/s3-console-polish-4-verify/verify.json` reports a title, `lang=en`, one h1, a main landmark, zero missing image alts, zero unlabeled buttons, and zero console/page errors.
+- Fresh 390 px live contexts verified `/`, `/?demo=1`, `/demo`, `/privacy`, `/terms`, client 404, and static missing-asset 404. The opened demo menu had visible/topmost Home, Demo, and Privacy controls, all 48 px high; its Axe scan had zero serious/critical issues.
+- Deployed JS/CSS SHA-256 values match `dist/` exactly. Root cache-control is `no-cache, max-age=0, must-revalidate`; hashed assets are `public, max-age=31536000, immutable`.
 
-## How to verify
+Screenshots: `/tmp/s3-console-polish-4-live-home-390.png`, `/tmp/s3-console-polish-4-live-demo-menu-390.png`, and `/tmp/s3-console-polish-4-live-404-390.png`. The complete finding-to-change-to-evidence mapping is `.factory/polish-4.md`.
+
+## Run locally
 
 ```sh
 npm ci
-npm test
-npm run test:claims
+npm run lint
+npm run test:clean
 npm run test:browser
+npm run test:claims
 ```
 
-Then inspect `/demo` at a 390 px viewport: the header route navigation is absent, reproducing F-4-1.
+For the optional real S3 regression, start a disposable MinIO endpoint and run:
 
-## Next steps
+```sh
+MINIO_ENDPOINT=http://127.0.0.1:9000 \
+MINIO_ACCESS_KEY=minioadmin MINIO_SECRET_KEY=minioadmin \
+npm run test:minio
+```
 
-1. Add a visible, keyboard-operable mobile console route menu with Home, Demo, and Privacy while keeping the separate bucket-rail control.
-2. Replace both uses of “portable” with the concrete S3-compatible object-store wording and add the README sentence to the complete copy audit.
-3. Re-run the mobile route-shell assertion, all claims, and this review checklist.
+## Known gaps and next steps
+
+None. Every finding in review 1 through review 4 is covered by the shipped implementation and recorded verification evidence.
