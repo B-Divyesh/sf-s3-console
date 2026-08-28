@@ -10,7 +10,7 @@ type AppState = {
 
 const app = document.querySelector<HTMLDivElement>('#app')!;
 const state: AppState = { buckets: [], objects: [], prefixes: [], prefix: '', loading: false, filter: '', demo: false };
-const buildId = 'v1.0.0 · polish-4';
+const buildId = 'v1.0.0 · polish-5';
 const siteUrl = 'https://s3-console.sociobot.in';
 const corsMethods = `${S3_HTTP_METHODS.slice(0, -1).join(', ')}, and ${S3_HTTP_METHODS.at(-1)}`;
 const corsStarterRule = JSON.stringify({
@@ -166,7 +166,7 @@ function renderConnect(): void {
       <section class="hero-copy"><p class="eyebrow">S3-compatible object-store console // v1.0</p><h1 tabindex="-1">Manage S3-compatible storage <em>from your browser</em></h1>
         <p class="hero-lede">For self-hosters and small ops teams that manage buckets across different storage providers.</p>
         <div class="hero-actions"><a class="button primary" href="/demo">Try it with sample data</a><span>Opens a disposable storage workspace.</span><a class="button" href="#connect-title">Connect your object store</a></div>
-        <ul class="plain-facts"><li>Open source</li><li>Your secret key is not sent in storage requests</li><li>Your endpoint must allow browser requests</li></ul>
+        <ul class="plain-facts"><li>Free to use</li><li>The sample workspace reloads offline after one visit</li><li>Your secret key is not sent in storage requests</li></ul>
       </section>
       <section class="connection-zone" aria-labelledby="connect-title">
         <picture class="hero-art"><source media="(max-width: 600px)" srcset="/assets/storage-workbench-mobile.webp"><img src="/assets/storage-workbench.webp" width="960" height="640" alt="Four different industrial storage crates linked to one terminal by orange cables" fetchpriority="high" decoding="async"></picture>
@@ -181,7 +181,7 @@ function renderConnect(): void {
           <button class="button primary wide" type="submit">Test and connect <span aria-hidden="true">→</span></button><p class="form-status" aria-live="polite"></p>
         </form>
       </section>
-      <section class="how-it-works"><p class="eyebrow">Three steps</p><h2>How it works</h2><ol><li><strong>Connect</strong><span>Enter one storage endpoint and access key.</span></li><li><strong>Browse</strong><span>Open buckets and inspect object details.</span></li><li><strong>Change</strong><span>Upload files or edit supported bucket settings.</span></li></ol></section>
+      <section class="how-it-works"><p class="eyebrow">Three steps</p><h2>How it works</h2><ol><li><h3>Connect an object store</h3><span>Enter one storage endpoint and access key.</span></li><li><h3>Browse buckets and objects</h3><span>Open buckets and inspect object details.</span></li><li><h3>Upload files and edit settings</h3><span>Upload files or edit supported bucket settings.</span></li></ol></section>
       <section id="cors-help" class="cors-help"><p class="eyebrow">Set up each storage server once</p><h2>Allow browser requests</h2><p>Add this site to the object store’s browser-access rules. This console sends ${corsMethods} requests. Expose the <code>ETag</code> response header so large uploads can finish.</p><pre tabindex="0"><code>${escapeHtml(corsStarterRule)}</code></pre></section><section class="scope"><p class="eyebrow">Product boundary</p><h2>Storage operations, not provider accounts</h2><p>The console does not manage users, replication, monitoring, or provider-specific settings.</p></section>
     </main>
     ${footer()}`;

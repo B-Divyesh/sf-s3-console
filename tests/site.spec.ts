@@ -9,9 +9,24 @@ test('first screen states the job, audience, action, and facts on phone and desk
     const action = page.getByRole('link', { name: 'Try it with sample data' }); await expect(action).toBeVisible();
     expect((await action.boundingBox())!.y + (await action.boundingBox())!.height).toBeLessThan(viewport.height);
     await expect(page.getByText('Opens a disposable storage workspace.')).toBeVisible();
-    for (const fact of ['Open source', 'Your secret key is not sent in storage requests', 'Your endpoint must allow browser requests']) {
-      await expect(page.getByText(fact)).toBeVisible();
+    for (const fact of ['Free to use', 'The sample workspace reloads offline after one visit', 'Your secret key is not sent in storage requests']) {
+      const item = page.getByText(fact, { exact: true });
+      await expect(item).toBeVisible();
+      const box = await item.boundingBox();
+      expect(box!.y + box!.height).toBeLessThan(viewport.height);
     }
+    if (viewport.width === 390) {
+      const caption = await page.getByText('Opens a disposable storage workspace.').boundingBox();
+      const realConnect = await page.getByRole('link', { name: 'Connect your object store' }).boundingBox();
+      expect(caption!.y).toBeLessThan(realConnect!.y);
+    }
+  }
+});
+
+test('workflow headings identify their task without nearby copy', async ({ page }) => {
+  await page.goto('/');
+  for (const name of ['Connect an object store', 'Browse buckets and objects', 'Upload files and edit settings']) {
+    await expect(page.getByRole('heading', { level: 3, name })).toBeVisible();
   }
 });
 
@@ -48,7 +63,7 @@ test('every route keeps the shared navigation, footer, and route metadata', asyn
     await expect(page.getByRole('link', { name: 'Home' }).first()).toBeVisible();
     await expect(page.getByRole('link', { name: 'Demo' }).first()).toBeVisible();
     await expect(page.getByRole('link', { name: 'Privacy' }).first()).toBeVisible();
-    await expect(page.getByRole('contentinfo').getByText(/v1\.0\.0 · polish-4/)).toBeVisible();
+    await expect(page.getByRole('contentinfo').getByText(/v1\.0\.0 · polish-5/)).toBeVisible();
     await expect(page.getByRole('contentinfo').getByRole('link', { name: 'Terms' })).toBeVisible();
   }
 });

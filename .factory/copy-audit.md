@@ -1,6 +1,6 @@
 # Copy audit
 
-Audited 28 August 2026 for polish 4. Counts treat hyphenated terms, product identifiers, and URL-format names as one word. Every retained sentence is 22 words or fewer and avoids the banned marketing words. Commands and the JSON browser-access example are data, not prose.
+Audited 28 August 2026 for polish 5. Counts treat hyphenated terms, product identifiers, and URL-format names as one word. Every retained sentence is 22 words or fewer and avoids the banned marketing words. Commands and the JSON browser-access example are data, not prose.
 
 ## Landing and route shell
 
@@ -15,16 +15,19 @@ Audited 28 August 2026 for polish 4. Counts treat hyphenated terms, product iden
 | Try it with sample data | 5 | Primary action. |
 | Opens a disposable storage workspace. | 5 | Explains the result. |
 | Connect your object store | 4 | Secondary action and form heading. |
-| Open source | 2 | Covered by `open-source`. |
+| Free to use | 3 | Covered by `free-to-use`. |
+| The sample workspace reloads offline after one visit | 8 | Covered by `offline-shell`. |
 | Your secret key is not sent in storage requests | 9 | Covered by `credential-routing`. |
-| Your endpoint must allow browser requests | 6 | Checked by browser-access diagnostics. |
 | Signed storage requests go only to your chosen endpoint. | 9 | Covered by `credential-routing`. |
-| Choose bucket subdomains only when your DNS and certificate support them. | 11 | Configuration help. |
+| Choose bucket subdomains only when your DNS and certificate support them. | 11 | Covered by `bucket-subdomain-routing`. |
 | Saves credentials in this browser until you disconnect. | 8 | Covered by credential-storage/disconnect claims. |
 | Leave off on shared machines. | 5 | Safety instruction. |
 | Your storage server must allow browser requests from this site. | 10 | Setup prerequisite. |
+| Connect an object store | 4 | Self-contained first workflow heading. |
 | Enter one storage endpoint and access key. | 7 | First workflow step. |
+| Browse buckets and objects | 4 | Self-contained second workflow heading. |
 | Open buckets and inspect object details. | 6 | Second workflow step. |
+| Upload files and edit settings | 5 | Self-contained third workflow heading. |
 | Upload files or edit supported bucket settings. | 7 | Third workflow step. |
 | Add this site to the object store’s browser-access rules. | 9 | Setup instruction. |
 | This console sends GET, PUT, POST, DELETE, and HEAD requests. | 10 | Covered by `cors-starter-rule`. |
@@ -52,7 +55,7 @@ Audited 28 August 2026 for polish 4. Counts treat hyphenated terms, product iden
 | Copies objects or moves them after a successful copy. | 9 | Covered by `object-copy` and `object-move`. |
 | Edits object metadata and tags. | 5 | Covered by metadata/tag claims. |
 | Edits policy, browser-access, and lifecycle rules. | 6 | Covered by settings claims. |
-| Enables or suspends bucket versioning. | 5 | Covered by `versioning-edit`. |
+| Enables or suspends bucket versioning. | 5 | Covered by `versioning-edit`, including both saved states. |
 | Creates expiring download and upload links. | 6 | Covered by signed-link claims. |
 | Keeps the sample workspace available after an offline reload. | 8 | Covered by `offline-shell`. |
 | Offers light and dark themes. | 5 | Covered by `theme-choice`. |
@@ -78,9 +81,9 @@ Audited 28 August 2026 for polish 4. Counts treat hyphenated terms, product iden
 | Browsers block HTTPS pages from calling HTTP endpoints. | 8 | Covered by `connection-diagnostics`. |
 | Use HTTPS for the object store when this console uses HTTPS. | 11 | Concrete correction. |
 | Path-style URLs are the default. | 5 | Covered by `path-style-default`. |
-| Use bucket subdomain URLs only when DNS and TLS cover those subdomains. | 12 | Configuration help. |
+| Use bucket subdomain URLs only when DNS and TLS cover those subdomains. | 12 | Covered by `bucket-subdomain-routing`. |
 | `npm run build` writes the static site to `dist/`. | 8 | Covered by `build-output`. |
-| The repository includes Azure Static Web Apps routing, headers, and cache rules. | 10 | Covered by deployment configuration assertions. |
+| The repository includes Azure Static Web Apps routing, headers, and cache rules. | 10 | Covered by `static-host-config`. |
 | S3 Console uses the MIT License. | 6 | Covered by `open-source`. |
 | Its original generated artwork is documented in `.factory/design.md`. | 8 | Covered by `artwork-provenance`. |
 

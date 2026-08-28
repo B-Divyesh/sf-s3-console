@@ -44,6 +44,19 @@ test('@claim:demo-sandbox loads isolated data, mutates it, and resets it', async
   expect(await page.evaluate(() => ({ local: localStorage.getItem('s3-connection'), session: sessionStorage.getItem('s3-connection') }))).toEqual({ local: null, session: null });
 });
 
+test('@claim:free-to-use exposes no paid tier, payment step, or payment request', async ({ page }) => {
+  const requests: string[] = [];
+  page.on('request', request => requests.push(request.url()));
+  await page.goto('/');
+  await expect(page.getByText('Free to use', { exact: true })).toBeVisible();
+  await page.getByRole('link', { name: 'Try it with sample data' }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'media-archive' })).toBeVisible();
+  const pageText = (await page.locator('body').innerText()).toLowerCase();
+  expect(pageText).not.toMatch(/\b(price|pricing|pay|payment|checkout|subscribe|upgrade)\b/);
+  expect(await page.locator('a, button').evaluateAll(elements => elements.filter(element => /price|pricing|pay|payment|checkout|subscribe|upgrade/i.test(`${element.textContent} ${(element as HTMLElement).getAttribute('aria-label') || ''}`)).length)).toBe(0);
+  expect(requests.every(url => new URL(url).origin === new URL(page.url()).origin)).toBeTruthy();
+});
+
 test('@claim:bucket-management creates and safely removes a sample bucket', async ({ page }) => {
   await openDemo(page);
   await page.getByRole('button', { name: /Create bucket/ }).first().click();
@@ -172,12 +185,17 @@ test('@claim:lifecycle-edit saves and reloads lifecycle rules', async ({ page })
   await expect(dialog.getByLabel('Rule JSON')).toContainText('"expirationDays": 14');
 });
 
-test('@claim:versioning-edit changes and reloads bucket versioning', async ({ page }) => {
+test('@claim:versioning-edit enables or suspends bucket versioning and reloads both states', async ({ page }) => {
   await openSettings(page); const dialog = page.getByRole('dialog');
   const toggle = dialog.getByRole('checkbox', { name: /Keep object versions/ });
   await toggle.check(); await dialog.getByRole('button', { name: 'Save versioning' }).click();
   await dialog.getByRole('tab', { name: 'Policy' }).click(); await dialog.getByRole('tab', { name: 'Versioning' }).click();
   await expect(dialog.getByRole('checkbox', { name: /Keep object versions/ })).toBeChecked();
+  await dialog.getByRole('checkbox', { name: /Keep object versions/ }).uncheck();
+  await dialog.getByRole('button', { name: 'Save versioning' }).click();
+  await dialog.getByRole('tab', { name: 'Policy' }).click(); await dialog.getByRole('tab', { name: 'Versioning' }).click();
+  await expect(dialog.getByRole('checkbox', { name: /Keep object versions/ })).not.toBeChecked();
+  await expect(dialog.getByRole('heading', { name: 'Versioning is suspended.' })).toBeVisible();
 });
 
 async function assertSignedLink(page: Page, label: 'Download (GET)' | 'Upload/replace (PUT)', method: 'GET' | 'PUT'): Promise<void> {
@@ -416,4 +434,34 @@ test('@claim:path-style-default selects path-style URLs and places the bucket in
   await page.getByRole('button', { name: 'Test and connect' }).click();
   await page.getByRole('button', { name: 'path-bucket' }).click();
   await expect.poll(() => requestPaths).toContain('/path-bucket');
+});
+
+test('@claim:bucket-subdomain-routing puts the bucket in the signed hostname and object key in the path', async ({ page }) => {
+  const requests: Array<{ url: URL; headers: Record<string, string> }> = [];
+  await page.route(/https:\/\/(?:virtual-bucket\.)?storage\.example\.test\//, route => {
+    const request = route.request(); const url = new URL(request.url());
+    requests.push({ url, headers: request.headers() });
+    if (request.method() === 'GET' && url.hostname === 'storage.example.test' && url.pathname === '/') {
+      return route.fulfill({ contentType: 'application/xml', body: '<ListAllMyBucketsResult><Buckets><Bucket><Name>virtual-bucket</Name></Bucket></Buckets></ListAllMyBucketsResult>' });
+    }
+    if (request.method() === 'GET' && url.searchParams.has('tagging')) return route.fulfill({ contentType: 'application/xml', body: '<Tagging><TagSet></TagSet></Tagging>' });
+    if (request.method() === 'HEAD') return route.fulfill({ status: 200, headers: { 'content-length': '5', etag: 'virtual-etag', 'last-modified': 'Fri, 28 Aug 2026 12:00:00 GMT' } });
+    if (request.method() === 'GET') return route.fulfill({ contentType: 'application/xml', body: '<ListBucketResult><Contents><Key>seed.txt</Key><Size>5</Size><LastModified>2026-08-28T12:00:00Z</LastModified></Contents></ListBucketResult>' });
+    return route.fulfill({ status: 500, body: 'Unexpected S3 request' });
+  });
+  await page.goto('/');
+  await page.getByLabel('URL format').selectOption('false');
+  await page.getByLabel('Storage endpoint URL').fill('https://storage.example.test');
+  await page.getByLabel('Access key ID').fill('VIRTUALACCESS'); await page.getByLabel('Secret access key').fill('never-send-this');
+  await page.getByRole('button', { name: 'Test and connect' }).click();
+  await page.getByRole('button', { name: 'virtual-bucket' }).click();
+  await expect(page.locator('button[data-object="seed.txt"]')).toBeVisible();
+  await page.locator('button[data-object="seed.txt"]').click();
+  await expect(page.getByRole('dialog').getByRole('heading', { name: 'seed.txt' })).toBeVisible();
+  const virtualRequests = requests.filter(request => request.url.hostname === 'virtual-bucket.storage.example.test');
+  expect(virtualRequests.some(request => request.url.pathname === '/' && request.url.searchParams.get('list-type') === '2')).toBeTruthy();
+  const objectRequest = virtualRequests.find(request => request.url.pathname === '/seed.txt');
+  expect(objectRequest).toBeDefined();
+  expect(objectRequest!.headers.authorization).toContain('Credential=VIRTUALACCESS/');
+  expect(JSON.stringify(objectRequest!.headers)).not.toContain('never-send-this');
 });
