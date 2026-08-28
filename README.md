@@ -1,6 +1,6 @@
 # S3 Console
 
-Manage S3-compatible storage from your browser. S3 Console is for self-hosters and small ops teams using portable S3 endpoints.
+Manage S3-compatible storage from your browser. S3 Console is for self-hosters and small ops teams using S3-compatible object stores from different providers.
 
 [Try the isolated sample workspace](https://s3-console.sociobot.in/?demo=1). It needs no endpoint or credentials.
 

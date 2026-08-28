@@ -10,7 +10,7 @@ type AppState = {
 
 const app = document.querySelector<HTMLDivElement>('#app')!;
 const state: AppState = { buckets: [], objects: [], prefixes: [], prefix: '', loading: false, filter: '', demo: false };
-const buildId = 'v1.0.0 · polish-3';
+const buildId = 'v1.0.0 · polish-4';
 const siteUrl = 'https://s3-console.sociobot.in';
 const corsMethods = `${S3_HTTP_METHODS.slice(0, -1).join(', ')}, and ${S3_HTTP_METHODS.at(-1)}`;
 const corsStarterRule = JSON.stringify({
@@ -113,6 +113,37 @@ function bindRoutes(): void {
 
 function bindChrome(): void { bindTheme(); bindRoutes(); }
 
+function closeSiteMenu(returnFocus = false): void {
+  const toggle = document.querySelector<HTMLButtonElement>('#site-menu-toggle');
+  const menu = document.querySelector<HTMLElement>('#console-route-menu');
+  if (!toggle || !menu) return;
+  menu.classList.remove('open');
+  toggle.setAttribute('aria-expanded', 'false');
+  toggle.setAttribute('aria-label', 'Open navigation menu');
+  if (returnFocus) toggle.focus();
+}
+
+function bindSiteMenu(): void {
+  const toggle = document.querySelector<HTMLButtonElement>('#site-menu-toggle');
+  const menu = document.querySelector<HTMLElement>('#console-route-menu');
+  if (!toggle || !menu) return;
+  toggle.addEventListener('click', () => {
+    const open = menu.classList.toggle('open');
+    toggle.setAttribute('aria-expanded', String(open));
+    toggle.setAttribute('aria-label', open ? 'Close navigation menu' : 'Open navigation menu');
+    if (open) requestAnimationFrame(() => menu.querySelector<HTMLAnchorElement>('a')?.focus());
+    else toggle.focus();
+  });
+  menu.addEventListener('keydown', event => {
+    if (event.key === 'Escape') { event.preventDefault(); closeSiteMenu(true); }
+  });
+  menu.addEventListener('focusout', event => {
+    const next = event.relatedTarget as Node | null;
+    if (next && (menu.contains(next) || toggle.contains(next))) return;
+    closeSiteMenu();
+  });
+}
+
 function focusRoute(): void {
   scrollTo(0, 0); const heading = document.querySelector<HTMLElement>('main h1'); heading?.focus();
   const live = document.querySelector<HTMLElement>('#route-status'); if (live) live.textContent = heading?.textContent || document.title;
@@ -132,7 +163,7 @@ function route(focus = false): void {
 function renderConnect(): void {
   app.innerHTML = `${header()}
     <main id="main" class="connect-main">
-      <section class="hero-copy"><p class="eyebrow">Portable object-store console // v1.0</p><h1 tabindex="-1">Manage S3-compatible storage <em>from your browser</em></h1>
+      <section class="hero-copy"><p class="eyebrow">S3-compatible object-store console // v1.0</p><h1 tabindex="-1">Manage S3-compatible storage <em>from your browser</em></h1>
         <p class="hero-lede">For self-hosters and small ops teams that manage buckets across different storage providers.</p>
         <div class="hero-actions"><a class="button primary" href="/demo">Try it with sample data</a><span>Opens a disposable storage workspace.</span><a class="button" href="#connect-title">Connect your object store</a></div>
         <ul class="plain-facts"><li>Open source</li><li>Your secret key is not sent in storage requests</li><li>Your endpoint must allow browser requests</li></ul>
@@ -200,7 +231,7 @@ function renderConsole(): void {
   const banner = state.demo ? `<aside class="demo-banner" aria-label="Demo mode"><strong>Demo — sample data, nothing is saved</strong><span>Changes last only in this tab.</span><div><button class="text-button" id="reset-demo">Reset demo</button><a href="/" aria-label="Start for real — connect your store">Start for real</a></div></aside>` : '';
   app.innerHTML = `${banner}<div class="console-shell ${state.demo ? 'has-demo-banner' : ''}"><header class="console-head"><button class="mobile-nav" id="mobile-nav" aria-label="Show buckets">${icons.bucket}</button><a class="brand compact" href="/">${icons.mark}<span>S3 Console</span></a>
     <div class="endpoint-chip"><i></i><span><strong>${state.demo ? 'Sample workspace' : 'Connected'}</strong>${state.demo ? 'In-memory data' : escapeHtml(new URL(state.connection!.endpoint).host)}</span></div>
-    <nav class="console-links" aria-label="Console links"><a href="/">Home</a><a href="/demo">Demo</a><a href="/privacy">Privacy</a></nav><div class="console-actions">${themeButton()}${state.demo ? '' : '<button class="button small" id="disconnect" title="Disconnect">Disconnect</button>'}</div></header>
+    <button class="site-menu-toggle" id="site-menu-toggle" type="button" aria-controls="console-route-menu" aria-expanded="false" aria-label="Open navigation menu"><span aria-hidden="true">☰</span><span>Menu</span></button><nav class="console-links" id="console-route-menu" aria-label="Console links"><a href="/">Home</a><a href="/demo">Demo</a><a href="/privacy">Privacy</a></nav><div class="console-actions">${themeButton()}${state.demo ? '' : '<button class="button small" id="disconnect" title="Disconnect">Disconnect</button>'}</div></header>
     <aside class="bucket-rail" id="bucket-rail"><div class="rail-label"><span>Buckets</span><b>${state.buckets.length.toString().padStart(2, '0')}</b></div><button class="button rail-create" id="create-bucket">＋ Create bucket</button><nav aria-label="Buckets"><ul class="bucket-list">${state.buckets.map(bucket => `<li><button data-bucket="${escapeHtml(bucket.name)}" class="${bucket.name === state.bucket ? 'active' : ''}">${icons.bucket}<span>${escapeHtml(bucket.name)}</span></button></li>`).join('')}</ul></nav><div class="rail-foot"><span>Region</span><strong>${escapeHtml(state.connection!.region)}</strong><span>Addressing</span><strong>${state.connection!.pathStyle ? 'Path-style' : 'Virtual host'}</strong></div></aside>
     <main id="main" class="object-workspace">${workspaceHtml()}</main></div>${footer()}`;
   bindConsole(); bindChrome();
@@ -232,6 +263,7 @@ function bindConsole(): void {
   document.querySelector('#disconnect')?.addEventListener('click', disconnect);
   document.querySelector('#reset-demo')?.addEventListener('click', resetDemo);
   document.querySelector('#mobile-nav')?.addEventListener('click', () => document.querySelector('#bucket-rail')?.classList.toggle('open'));
+  bindSiteMenu();
   document.querySelectorAll<HTMLButtonElement>('[data-bucket]').forEach(button => button.addEventListener('click', () => selectBucket(button.dataset.bucket!)));
   ['#create-bucket', '#empty-create'].forEach(selector => document.querySelector(selector)?.addEventListener('click', createBucketDialog));
   document.querySelector('#bucket-settings')?.addEventListener('click', bucketSettingsDialog);

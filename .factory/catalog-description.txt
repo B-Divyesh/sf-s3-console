@@ -1,1 +1,1 @@
-Manage S3-compatible buckets, objects, copies, moves, and signed links in your browser.
+Manage S3-compatible buckets, objects, and signed links directly in your browser.

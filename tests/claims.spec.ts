@@ -331,6 +331,7 @@ test('@claim:credential-storage keeps normal connections session-only unless opt
   await page.route('https://storage.example.test/**', route => route.fulfill({ status: 200, contentType: 'application/xml', body: '<ListAllMyBucketsResult><Buckets></Buckets></ListAllMyBucketsResult>' }));
   await page.goto('/'); await page.getByLabel('Storage endpoint URL').fill('https://storage.example.test'); await page.getByLabel('Access key ID').fill('TEST'); await page.getByLabel('Secret access key').fill('secret');
   await page.getByRole('button', { name: 'Test and connect' }).click();
+  await expect(page.getByText('Connected. Found 0 buckets.')).toBeVisible();
   expect(await page.evaluate(() => ({ local: localStorage.getItem('s3-connection'), session: sessionStorage.getItem('s3-connection') }))).toMatchObject({ local: null, session: expect.stringContaining('storage.example.test') });
   page.once('dialog', dialog => dialog.accept());
   await page.getByRole('button', { name: 'Disconnect' }).click();
@@ -339,6 +340,7 @@ test('@claim:credential-storage keeps normal connections session-only unless opt
   await page.getByLabel('Secret access key').fill('secret');
   await page.getByLabel('Remember on this device').check();
   await page.getByRole('button', { name: 'Test and connect' }).click();
+  await expect(page.getByText('Connected. Found 0 buckets.')).toBeVisible();
   expect(await page.evaluate(() => ({ local: localStorage.getItem('s3-connection'), session: sessionStorage.getItem('s3-connection') }))).toMatchObject({ local: expect.stringContaining('storage.example.test'), session: null });
 });
 
